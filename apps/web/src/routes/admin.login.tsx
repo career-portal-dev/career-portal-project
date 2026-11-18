@@ -110,7 +110,11 @@ function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-7 shadow-soft">
         <div className="flex items-center gap-3">
-          <BrandMark size={40} />
+          <BrandMark
+            size={44}
+            fit="auto"
+            className="max-w-[160px] mix-blend-multiply dark:mix-blend-normal"
+          />
           <div className="min-w-0">
             <p className="truncate font-display text-base font-semibold">
               {tr(config.copy.brand)}

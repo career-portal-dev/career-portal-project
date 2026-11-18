@@ -13,10 +13,13 @@ export function BrandMark({
   size = 36,
   className,
   tone = "default",
+  fit = "square",
 }: {
   size?: number;
   className?: string;
   tone?: "default" | "sidebar";
+  /** "auto": the logo keeps its own aspect ratio at a fixed height (`size`). */
+  fit?: "square" | "auto";
 }) {
   const { tr } = useI18n();
   const { config } = useSiteConfig();
@@ -37,6 +40,22 @@ export function BrandMark({
       >
         {brandInitials(name)}
       </span>
+    );
+  }
+
+  if (fit === "auto") {
+    return (
+      <img
+        src={logo}
+        alt={name}
+        height={size}
+        style={{ height: size }}
+        decoding="async"
+        className={cn(
+          "block w-auto min-w-0 max-w-[220px] bg-transparent object-contain object-left",
+          className,
+        )}
+      />
     );
   }
 

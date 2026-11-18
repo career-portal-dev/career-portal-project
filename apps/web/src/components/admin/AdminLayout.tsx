@@ -121,7 +121,13 @@ export function AdminLayout({
     <div className="flex min-h-screen w-full bg-surface">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground lg:flex">
         <Link to="/" className="flex items-center gap-2.5 px-2">
-          <BrandMark size={36} tone="sidebar" />
+          {config.images.logo?.trim() ? (
+            <span className="flex h-10 min-w-0 max-w-[112px] shrink items-center bg-white px-1.5 py-1">
+              <BrandMark size={32} fit="auto" className="max-w-full" />
+            </span>
+          ) : (
+            <BrandMark size={36} tone="sidebar" />
+          )}
           <span className="min-w-0">
             <span className="block truncate font-display text-sm font-semibold">
               {tr(config.copy.brand)}

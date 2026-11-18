@@ -44,7 +44,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 sm:px-6">
         <Link to="/" className="flex min-w-0 items-center gap-3" aria-label={tr(config.copy.brand)}>
-          <BrandMark size={40} />
+          <BrandMark size={44} fit="auto" className="max-w-[140px] mix-blend-multiply sm:max-w-[180px] dark:mix-blend-normal" />
           <span className="min-w-0">
             <span className="block truncate font-display text-base font-semibold tracking-tight">
               {tr(config.copy.brand)}

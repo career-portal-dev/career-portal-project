@@ -21,6 +21,7 @@ import { NewsProvider } from "@/lib/news-store";
 import { InboxProvider } from "@/lib/inbox-store";
 import { AuthProvider } from "@/lib/auth-store";
 import { Toaster } from "@/components/ui/sonner";
+import { SquareFavicon } from "@/components/site/SquareFavicon";
 import { getSiteBrand } from "@/lib/route-meta";
 import { getFaviconLink, getInitialSiteConfig } from "@/lib/site-config-cache";
 import { translate } from "@/lib/i18n";
@@ -177,6 +178,7 @@ function RootComponent() {
                     <InboxProvider>
                       <AuthProvider>
                       <RouteProgressBar />
+                      <SquareFavicon />
                       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
                       <Outlet />
                       <Toaster />
