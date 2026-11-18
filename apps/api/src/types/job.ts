@@ -30,6 +30,20 @@ export interface JobModel {
   contactName?: string | null;
   contactEmail?: string | null;
   deadline?: string | null;
+  /** Role-specific apply-form questions (validated in the service). */
+  extraFields?: unknown;
+}
+
+export type JobQuestionType = "text" | "url" | "textarea" | "select";
+
+/** Role-specific question appended to the apply form for this job. */
+export interface JobQuestion {
+  id: string;
+  label: { vi: string; en: string };
+  type: JobQuestionType;
+  required: boolean;
+  placeholder?: { vi: string; en: string };
+  options?: { vi: string; en: string }[];
 }
 
 // Params phục vụ phân trang, lọc và tìm kiếm

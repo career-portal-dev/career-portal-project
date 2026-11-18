@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { JobQuestionsEditor, jobQuestionError } from "@/components/admin/JobQuestionsEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -355,6 +356,11 @@ function AdminJobsPage() {
 
   const submit = async (statusOverride?: JobStatus) => {
     if (!draft || isSaving) return;
+    const questionError = jobQuestionError(draft.extraFields);
+    if (questionError) {
+      toast.error(tr(questionError));
+      return;
+    }
     setIsSaving(true);
     try {
       const payload = toApiPayload(draft, statusOverride);
@@ -736,6 +742,18 @@ function AdminJobsPage() {
                       onChange={(value) => patch({ [field]: value })}
                     />
                   ))}
+                </section>
+
+                <section className="space-y-4">
+                  <div className="border-b border-border pb-2 mb-4 pt-2">
+                    <p className="font-display text-sm font-semibold text-foreground">
+                      {tr({ vi: "Câu hỏi riêng cho vị trí", en: "Role-specific questions" })}
+                    </p>
+                  </div>
+                  <JobQuestionsEditor
+                    value={draft.extraFields}
+                    onChange={(extraFields) => patch({ extraFields })}
+                  />
                 </section>
               </div>
 

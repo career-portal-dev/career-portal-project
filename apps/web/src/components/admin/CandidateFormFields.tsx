@@ -2,7 +2,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useFormConfig, type FormField } from "@/lib/form-config";
+import type { DynamicField } from "@/data/jobs";
+import { fromDynamicField, useFormConfig, type FormField } from "@/lib/form-config";
 import { useI18n } from "@/lib/i18n";
 
 type Answers = Record<string, string | boolean>;
@@ -10,9 +11,13 @@ type Answers = Record<string, string | boolean>;
 /** Field ids the dialog header already shows (name, contact details, address). */
 const HEADER_FIELD_IDS = new Set(["fullname", "name", "email", "phone", "city", "address"]);
 
-/** True for fields already shown elsewhere in the dialog (header or CV block). */
+/**
+ * True for fields not listed in the dialog: those already shown elsewhere (header or CV
+ * block) and the storage consent checkbox.
+ */
 function isShownElsewhere(field: FormField): boolean {
   const id = field.id.toLowerCase();
+  if (id === "consent") return true;
   if (field.type === "file" || field.type === "email" || field.type === "tel") return true;
   if (HEADER_FIELD_IDS.has(id)) return true;
   return field.type === "text" && (id.includes("name") || id.includes("address"));
@@ -22,23 +27,36 @@ function isShownElsewhere(field: FormField): boolean {
 const readOnlyClass = "cursor-default";
 
 /**
- * Answers to the first section ("Personal information") of the apply form builder,
- * including questions added there, laid out like the apply form (label above a
- * read-only input). Fields the dialog header already shows are skipped.
+ * A candidate's apply-form answers laid out like the apply form (label above a read-only
+ * input), including questions added in the form builder. `part="first"` renders the
+ * first section (personal information, placed above the CV block); `part="rest"` renders
+ * every later section in order. Fields the dialog already shows (name, contact details,
+ * address, uploaded files) are skipped.
  */
-export function CandidatePersonalInfo({
+export function CandidateFormFields({
   candidateId,
   answers,
+  part,
+  jobFields = [],
 }: {
   candidateId: string;
   answers: Answers | undefined;
+  part: "first" | "rest";
+  /** Role-specific questions of the job the candidate applied to. */
+  jobFields?: DynamicField[];
 }) {
   const { tr } = useI18n();
   const { formConfig } = useFormConfig();
 
-  const section = formConfig.sections[0];
-  const fields = section?.fields.filter((field) => !isShownElsewhere(field)) ?? [];
-  if (!section || fields.length === 0) return null;
+  // Same as the apply page: role questions join the section that includes job fields.
+  const sections = formConfig.sections.map((section) =>
+    section.includeJobFields
+      ? [...section.fields, ...jobFields.map(fromDynamicField)]
+      : section.fields,
+  );
+  const partSections = part === "first" ? sections.slice(0, 1) : sections.slice(1);
+  const fields = partSections.flat().filter((field) => !isShownElsewhere(field));
+  if (fields.length === 0) return null;
 
   const textOf = (field: FormField): string => {
     const raw = answers?.[field.id];

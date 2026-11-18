@@ -8,7 +8,7 @@
  * nên module này chịu trách nhiệm map hai chiều.
  */
 
-import type { Job, JobStatus } from "@/data/jobs";
+import type { DynamicField, Job, JobStatus } from "@/data/jobs";
 import type { Localized } from "@/lib/i18n";
 import { apiRequest } from "@/lib/api/request";
 
@@ -41,6 +41,7 @@ export interface ApiJobPayload {
   contactName?: string | null;
   contactEmail?: string | null;
   deadline: string;
+  extraFields?: DynamicField[];
 }
 
 /** Shape Taxonomy info do AdminJobService trả về (label {vi, en}). */
@@ -76,6 +77,7 @@ export interface ApiJob {
   workTypeId?: string | null;
   salaryId?: string | null;
   level?: unknown;
+  extraFields?: unknown;
   /** Legacy aliases kept for records returned by older API versions. */
   department?: string | null;
   location?: string | null;
@@ -136,6 +138,29 @@ function asLocalizedContent(value: unknown): Localized | null {
   return item.vi || item.en ? item : null;
 }
 
+const dynamicFieldTypes: readonly DynamicField["type"][] = ["text", "url", "textarea", "select"];
+
+/** Role-specific questions stored on the job; malformed entries are dropped. */
+function asDynamicFields(value: unknown): DynamicField[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): DynamicField[] => {
+    if (!item || typeof item !== "object") return [];
+    const raw = item as Record<string, unknown>;
+    const type = dynamicFieldTypes.find((candidate) => candidate === raw.type);
+    if (typeof raw.id !== "string" || !raw.id || !type) return [];
+    const field: DynamicField = {
+      id: raw.id,
+      label: asLocalized(raw.label),
+      type,
+      required: raw.required === true,
+    };
+    const placeholder = asLocalized(raw.placeholder);
+    if (placeholder.vi || placeholder.en) field.placeholder = placeholder;
+    if (Array.isArray(raw.options)) field.options = raw.options.map(asLocalized);
+    return [field];
+  });
+}
+
 /** Ngày ISO (Prisma DateTime) -> "yyyy-mm-dd" cho <Input type="date">. */
 function toDateString(value: unknown): string {
   if (typeof value !== "string" || !value) return "";
@@ -179,7 +204,7 @@ export function mapApiJob(raw: ApiJob): Job {
     description: asLocalizedContent(raw.description),
     requirements: asLocalizedContent(raw.requirements),
     benefits: asLocalizedContent(raw.benefits),
-    extraFields: [],
+    extraFields: asDynamicFields(raw.extraFields),
     headcount: typeof raw.headcount === "number" ? raw.headcount : undefined,
     experienceId: experienceId,
     experience: raw.experienceInfo?.label ?? (raw.experience ? asLocalized(raw.experience) : undefined),
@@ -228,6 +253,7 @@ export function toApiPayload(job: Job, statusOverride?: JobStatus): ApiJobPayloa
   payload.headcount = typeof job.headcount === "number" && Number.isFinite(job.headcount) ? job.headcount : null;
   payload.contactName = job.contactName?.trim() || null;
   payload.contactEmail = job.contactEmail?.trim() || null;
+  payload.extraFields = job.extraFields;
 
   return payload;
 }

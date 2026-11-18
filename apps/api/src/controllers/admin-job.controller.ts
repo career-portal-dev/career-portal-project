@@ -97,6 +97,7 @@ export class AdminJobController {
         contactName: req.body.contactName,
         contactEmail: req.body.contactEmail,
         deadline: req.body.deadline,
+        extraFields: req.body.extraFields,
       };
 
       const job = await this.service.create(data);
@@ -137,6 +138,7 @@ export class AdminJobController {
         contactName: req.body.contactName,
         contactEmail: req.body.contactEmail,
         deadline: req.body.deadline,
+        extraFields: req.body.extraFields,
       };
 
       const job = await this.service.update(id, data);

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
-import { CandidatePersonalInfo } from "@/components/admin/CandidatePersonalInfo";
+import { CandidateFormFields } from "@/components/admin/CandidateFormFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -414,6 +414,9 @@ function AdminCandidatesPage() {
   };
 
   const displayedRating = hoverRating ?? editRating ?? selected?.rating ?? 0;
+  /** Role-specific questions of the selected candidate's job (shown with their answers). */
+  const selectedJobFields =
+    filterJobs.find((job) => job.id === selected?.jobId)?.extraFields ?? [];
 
   /** Applied job title for a candidate, or "—" when it has no job. */
   const jobTitleLabel = (candidate: Candidate) => {
@@ -686,6 +689,22 @@ function AdminCandidatesPage() {
                 <DialogDescription>
                   {t("admin.candidates.profile")} · {tr(selected.experience)}
                 </DialogDescription>
+                {selected.highlights.length > 0 && (
+                  <ul
+                    aria-label={tr({ vi: "Điểm nổi bật", en: "Highlights" })}
+                    className="flex flex-wrap gap-1.5 pt-1.5"
+                  >
+                    {selected.highlights.map((item) => (
+                      <li
+                        key={item.en}
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-medium text-foreground"
+                      >
+                        <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="truncate">{tr(item)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </DialogHeader>
 
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -743,7 +762,12 @@ function AdminCandidatesPage() {
                 </span>
               </div>
 
-              <CandidatePersonalInfo candidateId={selected.id} answers={selected.formData} />
+              <CandidateFormFields
+                candidateId={selected.id}
+                answers={selected.formData}
+                part="first"
+                jobFields={selectedJobFields}
+              />
 
               <div className="rounded-md border border-border bg-surface p-4">
                 <p className="text-xs text-muted-foreground">{t("admin.candidates.cv")}</p>
@@ -787,16 +811,12 @@ function AdminCandidatesPage() {
                 </div>
               </div>
 
-              {selected.highlights.length > 0 && (
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {selected.highlights.map((item) => (
-                    <li key={item.en} className="flex gap-2">
-                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent" />
-                      {tr(item)}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <CandidateFormFields
+                candidateId={selected.id}
+                answers={selected.formData}
+                part="rest"
+                jobFields={selectedJobFields}
+              />
 
               <div className="space-y-2">
                 <Label htmlFor="stage">{t("admin.candidates.changeStage")}</Label>

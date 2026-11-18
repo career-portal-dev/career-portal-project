@@ -7,7 +7,14 @@ import {
   softDeleteData,
   toLocalizedObj,
 } from "./base.service";
-import type { JobModel, JobModelQuery, JobStatus, LocaleStringModel } from "../types/job";
+import type {
+  JobModel,
+  JobModelQuery,
+  JobQuestion,
+  JobQuestionType,
+  JobStatus,
+  LocaleStringModel,
+} from "../types/job";
 
 // Taxonomy type codes. Seed lưu dạng thường ("department", "workType", "level", "location", "newsCategory"),
 // task spec dùng dạng hoa ("DEPARTMENT","LOCATION","LEVEL","NEWSCATEGORY") — so khớp không phân biệt hoa/thường.
@@ -152,6 +159,49 @@ function formatLocalizedField(value: unknown): Prisma.InputJsonValue | typeof Pr
   }
 
   return Prisma.JsonNull;
+}
+
+const JOB_QUESTION_TYPES: readonly JobQuestionType[] = ["text", "url", "textarea", "select"];
+const MAX_JOB_QUESTIONS = 30;
+const MAX_QUESTION_TEXT = 500;
+
+function questionText(value: unknown): { vi: string; en: string } {
+  const raw = value && typeof value === "object" ? (value as { vi?: unknown; en?: unknown }) : {};
+  const vi = typeof raw.vi === "string" ? raw.vi.trim().slice(0, MAX_QUESTION_TEXT) : "";
+  const en = typeof raw.en === "string" ? raw.en.trim().slice(0, MAX_QUESTION_TEXT) : "";
+  return { vi: vi || en, en: en || vi };
+}
+
+/**
+ * Validates role-specific questions sent by the admin editor. Drops malformed entries,
+ * questions without a label and duplicate ids; select questions need at least one option.
+ */
+function normalizeJobQuestions(value: unknown): JobQuestion[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const questions: JobQuestion[] = [];
+  for (const item of value.slice(0, MAX_JOB_QUESTIONS)) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const id = typeof raw.id === "string" ? raw.id.trim().replace(/[^\w-]/g, "").slice(0, 64) : "";
+    const type = JOB_QUESTION_TYPES.find((candidate) => candidate === raw.type);
+    const label = questionText(raw.label);
+    if (!id || seen.has(id) || !type || !label.vi) continue;
+
+    const question: JobQuestion = { id, label, type, required: raw.required === true };
+    const placeholder = questionText(raw.placeholder);
+    if (placeholder.vi) question.placeholder = placeholder;
+    if (type === "select") {
+      const options = (Array.isArray(raw.options) ? raw.options : [])
+        .map(questionText)
+        .filter((option) => option.vi);
+      if (options.length === 0) continue;
+      question.options = options;
+    }
+    seen.add(id);
+    questions.push(question);
+  }
+  return questions;
 }
 
 function normalizeHeadcount(value: number | string | null | undefined): number | null {
@@ -403,6 +453,7 @@ export class AdminJobService extends BaseService {
         applicants: 0,
         featured: data.isFeatured ?? false,
         headcount: normalizeHeadcount(data.headcount),
+        extraFields: normalizeJobQuestions(data.extraFields) as unknown as Prisma.InputJsonValue,
         contactName: data.contactName?.trim() || null,
         contactEmail: data.contactEmail?.trim() || null,
         status: data.status ?? "DRAFT",
@@ -448,6 +499,7 @@ export class AdminJobService extends BaseService {
       ...(data.status && { status: data.status }),
       ...(data.isFeatured !== undefined && { featured: data.isFeatured }),
       ...(data.headcount !== undefined && { headcount: normalizeHeadcount(data.headcount) }),
+      ...(data.extraFields !== undefined && { extraFields: normalizeJobQuestions(data.extraFields) }),
       ...(data.contactName !== undefined && { contactName: data.contactName?.trim() || null }),
       ...(data.contactEmail !== undefined && { contactEmail: data.contactEmail?.trim() || null }),
       ...(data.level !== undefined && {
