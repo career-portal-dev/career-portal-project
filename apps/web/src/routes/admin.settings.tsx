@@ -51,7 +51,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getIcon, iconNames } from "@/data/homeContent";
+import { getIcon, iconLabels, iconNames } from "@/data/homeContent";
 import {
   aboutLibrary,
   cultureLibrary,
@@ -738,18 +738,22 @@ function ItemRow({
 }
 
 function IconSelect({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  const { t } = useI18n();
+  const { t, tr } = useI18n();
   const Current = getIcon(value);
+  const known = iconNames.find((name) => name === value);
+  const currentLabel = known ? tr(iconLabels[known]) : value || "—";
 
   return (
     <div>
       <Label className="text-sm font-medium">{t("settings.field.icon")}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="mt-2 w-full sm:w-56">
+        <SelectTrigger className="mt-2 h-11 w-full sm:w-72">
           <SelectValue>
-            <span className="flex items-center gap-2">
-              <Current className="h-4 w-4 text-accent" />
-              {value}
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                <Current className="h-4 w-4" />
+              </span>
+              <span className="truncate">{currentLabel}</span>
             </span>
           </SelectValue>
         </SelectTrigger>
@@ -758,9 +762,11 @@ function IconSelect({ value, onChange }: { value: string; onChange: (next: strin
             const Icon = getIcon(name);
             return (
               <SelectItem key={name} value={name}>
-                <span className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-accent" />
-                  {name}
+                <span className="flex items-center gap-2.5">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  {tr(iconLabels[name])}
                 </span>
               </SelectItem>
             );

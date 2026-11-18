@@ -11,6 +11,7 @@ import {
   homeSectionClass,
   useHomeData,
 } from "@/components/home/shared";
+import { HomeIconBadge } from "@/components/home/HomeIconBadge";
 import { Button } from "@/components/ui/button";
 import type { AboutWidgetStyle, HomeWidgetKey } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
@@ -182,6 +183,7 @@ export function HomeEditorial() {
             <div className={cn("grid min-w-0 gap-x-12 gap-y-8", homeCols(s.layout))}>
               {benefits.items.map((benefit) => (
                 <div key={benefit.id} className="min-w-0 border-t border-border pt-5">
+                  <HomeIconBadge icon={benefit.icon} className="mb-4" />
                   <h3 className="font-display text-base font-semibold">{tr(benefit.title)}</h3>
                   <p className="mt-2 text-sm leading-relaxed opacity-75">{tr(benefit.body)}</p>
                 </div>

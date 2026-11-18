@@ -14,6 +14,7 @@ import {
 import { JobCard } from "@/components/site/JobCard";
 import { Button } from "@/components/ui/button";
 import { getIcon } from "@/data/homeContent";
+import { HomeIconBadge } from "@/components/home/HomeIconBadge";
 import type { AboutWidgetStyle, HomeWidgetKey } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -194,13 +195,12 @@ export function HomeSplit() {
           )}
           <div className={cn("mt-8 grid gap-4", homeCols(s.layout))}>
             {benefits.items.map((benefit) => {
-              const Icon = getIcon(benefit.icon);
               return (
                 <div
                   key={benefit.id}
                   className="rounded-lg border border-border bg-card p-6 text-card-foreground"
                 >
-                  <Icon className="h-5 w-5 text-accent" />
+                  <HomeIconBadge icon={benefit.icon} />
                   <h3 className="mt-4 font-display text-lg font-semibold">{tr(benefit.title)}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {tr(benefit.body)}

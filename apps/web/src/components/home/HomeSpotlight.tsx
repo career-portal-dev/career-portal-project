@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getIcon } from "@/data/homeContent";
+import { HomeIconBadge } from "@/components/home/HomeIconBadge";
 import type { AboutWidgetStyle, HomeWidgetKey } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -222,13 +223,12 @@ export function HomeSpotlight() {
           </h2>
           <div className={cn("mt-8 grid gap-4", homeCols(s.layout))}>
             {benefits.items.map((benefit) => {
-              const Icon = getIcon(benefit.icon);
               return (
                 <div
                   key={benefit.id}
                   className="rounded-xl border border-primary-foreground/12 bg-primary-foreground/5 p-6"
                 >
-                  <Icon className="h-5 w-5 text-accent" />
+                  <HomeIconBadge icon={benefit.icon} />
                   <h3 className="mt-4 font-display text-lg font-semibold">{tr(benefit.title)}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-primary-foreground/60">
                     {tr(benefit.body)}

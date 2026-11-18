@@ -14,6 +14,7 @@ import {
 import { JobCard } from "@/components/site/JobCard";
 import { Button } from "@/components/ui/button";
 import { getIcon } from "@/data/homeContent";
+import { HomeIconBadge } from "@/components/home/HomeIconBadge";
 import type { AboutWidgetStyle, HomeWidgetKey } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -168,10 +169,9 @@ export function HomeClassic() {
               )}
               <div className="mt-8 space-y-6">
                 {benefits.items.map((benefit) => {
-                  const Icon = getIcon(benefit.icon);
                   return (
                     <div key={benefit.id} className="flex gap-4">
-                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+                      <HomeIconBadge icon={benefit.icon} />
                       <div className="min-w-0">
                         <h3 className="font-display text-base font-semibold">
                           {tr(benefit.title)}

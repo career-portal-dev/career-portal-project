@@ -14,6 +14,7 @@ import {
 import { JobCard } from "@/components/site/JobCard";
 import { Button } from "@/components/ui/button";
 import { getIcon } from "@/data/homeContent";
+import { HomeIconBadge } from "@/components/home/HomeIconBadge";
 import type { AboutWidgetStyle, HomeWidgetKey } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -132,13 +133,12 @@ export function HomeBento() {
           <h2 className="font-display text-3xl font-semibold sm:text-4xl">{tr(benefits.title)}</h2>
           <div className={cn("mt-6 grid gap-4", homeCols(s.layout))}>
             {benefits.items.map((benefit) => {
-              const Icon = getIcon(benefit.icon);
               return (
                 <div
                   key={benefit.id}
                   className="min-w-0 rounded-2xl border border-border bg-card p-6 text-card-foreground"
                 >
-                  <Icon className="h-5 w-5 text-accent" />
+                  <HomeIconBadge icon={benefit.icon} />
                   <h3 className="mt-4 font-display text-base font-semibold">{tr(benefit.title)}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {tr(benefit.body)}
