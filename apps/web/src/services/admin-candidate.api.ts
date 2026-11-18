@@ -48,6 +48,7 @@ interface ApiCandidate {
   experience: ApiLocalizedText;
   highlights: ApiLocalizedText[];
   notes: CandidateNote[];
+  formData?: Record<string, string | boolean>;
 }
 
 /* ---------- status mapping ---------- */
@@ -107,6 +108,7 @@ function mapApiCandidate(raw: ApiCandidate): Candidate {
       at: note.at || "",
       body: asLocalized(note.body),
     })),
+    formData: raw.formData ?? {},
   };
 }
 

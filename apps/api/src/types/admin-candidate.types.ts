@@ -49,6 +49,8 @@ export interface AdminCandidateListItem {
   experience: AdminCandidateLocalizedText;
   highlights: AdminCandidateLocalizedText[];
   notes: AdminCandidateNote[];
+  /** Answers submitted on the apply form, keyed by form field id. */
+  formData: Record<string, string | boolean>;
 }
 
 export interface AdminCandidatePaginatedResponse {

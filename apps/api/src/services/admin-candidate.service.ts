@@ -41,6 +41,16 @@ function readFormLocation(value: unknown): AdminCandidateLocalizedText {
   return readLocalized(formData.location);
 }
 
+/** Apply-form answers ({ fieldId: string | boolean }); drops any other value shapes. */
+function readFormAnswers(value: unknown): Record<string, string | boolean> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const answers: Record<string, string | boolean> = {};
+  for (const [key, answer] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof answer === "string" || typeof answer === "boolean") answers[key] = answer;
+  }
+  return answers;
+}
+
 function readNotes(value: unknown): AdminCandidateNote[] {
   if (typeof value === "string") {
     if (!value.trim()) return [];
@@ -123,6 +133,7 @@ function mapCandidate(candidate: {
     experience,
     highlights: readHighlights(candidate.highlights),
     notes: readNotes(candidate.notes),
+    formData: readFormAnswers(candidate.formData),
   };
 }
 

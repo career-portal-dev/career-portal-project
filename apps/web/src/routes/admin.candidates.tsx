@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
+import { CandidatePersonalInfo } from "@/components/admin/CandidatePersonalInfo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -741,6 +742,8 @@ function AdminCandidatesPage() {
                   </span>
                 </span>
               </div>
+
+              <CandidatePersonalInfo candidateId={selected.id} answers={selected.formData} />
 
               <div className="rounded-md border border-border bg-surface p-4">
                 <p className="text-xs text-muted-foreground">{t("admin.candidates.cv")}</p>

@@ -31,6 +31,8 @@ export type Candidate = {
   experience: Localized;
   highlights: Localized[];
   notes: { author: string; at: string; body: Localized }[];
+  /** Answers submitted on the apply form, keyed by form field id. */
+  formData?: Record<string, string | boolean>;
 };
 
 export const candidates: Candidate[] = [
