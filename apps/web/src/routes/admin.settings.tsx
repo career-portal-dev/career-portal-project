@@ -296,18 +296,35 @@ function ImagePicker({
   library,
   value,
   onChange,
+  customLabel,
 }: {
   label: string;
   library: MediaItem[];
   value: string;
   onChange: (url: string) => void;
+  /** When set, an image that is not in the library is shown as a selected tile. */
+  customLabel?: Localized;
 }) {
   const { t, tr } = useI18n();
+  const custom = value.trim();
+  const showCustom = !!customLabel && !!custom && !library.some((item) => item.url === value);
 
   return (
     <div>
       <Label className="text-sm font-medium">{label}</Label>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {showCustom && (
+          <div className="overflow-hidden rounded-lg border-2 border-accent text-left">
+            <img
+              src={custom}
+              alt={tr(customLabel)}
+              className="h-20 w-full bg-white object-contain p-2"
+            />
+            <span className="block truncate px-2 py-1.5 text-xs text-muted-foreground">
+              {tr(customLabel)}
+            </span>
+          </div>
+        )}
         {library.map((item) => (
           <button
             key={item.id}
@@ -1661,6 +1678,7 @@ function AdminSettings() {
                       library={logoLibrary}
                       value={draft.images.logo}
                       onChange={(logo) => update({ images: { ...draft.images, logo } })}
+                      customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
                     />
                     <div className="flex flex-wrap items-center gap-3">
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40">
@@ -1739,7 +1757,7 @@ function AdminSettings() {
                       <img
                         src={draft.images.logo}
                         alt=""
-                        className="h-11 w-11 shrink-0 rounded-lg object-contain"
+                        className="h-11 w-auto min-w-0 max-w-[160px] object-contain object-left"
                       />
                     ) : (
                       <span
