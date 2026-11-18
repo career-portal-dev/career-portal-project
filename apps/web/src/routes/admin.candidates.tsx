@@ -48,6 +48,7 @@ import { getJob, type Job } from "@/data/jobs";
 import { fetchJobs } from "@/lib/api/jobs";
 import { useI18n } from "@/lib/i18n";
 import { adminCandidateApi } from "@/services/admin-candidate.api";
+import { ApiError } from "@/lib/api/request";
 import { createRouteMeta } from "@/lib/route-meta";
 
 const PAGE_SIZE = 10;
@@ -224,6 +225,7 @@ function AdminCandidatesPage() {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [editNoteBody, setEditNoteBody] = useState("");
   const [cvPreview, setCvPreview] = useState<CvPreview | null>(null);
+  const [cvLoadingId, setCvLoadingId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const cvObjectUrlRef = useRef<string | null>(null);
 
@@ -237,32 +239,37 @@ function AdminCandidatesPage() {
     };
   }, []);
 
+  // Tải CV trước rồi mới mở dialog: nếu file không tồn tại chỉ báo lỗi, không mở rồi đóng
+  // dialog ngay (gây chớp màn hình).
   async function openCvPreview(candidate: { id: string; name: string; cvFile: string }) {
-    if (!candidate.cvFile) return;
+    if (!candidate.cvFile || cvLoadingId) return;
     const fileName = candidate.cvFile.split("/").pop() ?? candidate.cvFile;
-    if (cvObjectUrlRef.current) {
-      URL.revokeObjectURL(cvObjectUrlRef.current);
-      cvObjectUrlRef.current = null;
-    }
-    setCvPreview({
-      candidateId: candidate.id,
-      candidateName: candidate.name,
-      fileName,
-      url: "",
-      isLoading: true,
-    });
+    setCvLoadingId(candidate.id);
     try {
       const blob = await adminCandidateApi.getCvBlob(candidate.id);
+      if (cvObjectUrlRef.current) URL.revokeObjectURL(cvObjectUrlRef.current);
       const objectUrl = URL.createObjectURL(blob);
       cvObjectUrlRef.current = objectUrl;
-      setCvPreview((prev) =>
-        prev && prev.candidateId === candidate.id
-          ? { ...prev, url: objectUrl, isLoading: false }
-          : prev,
-      );
+      setCvPreview({
+        candidateId: candidate.id,
+        candidateName: candidate.name,
+        fileName,
+        url: objectUrl,
+        isLoading: false,
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("settings.storageNote"));
-      setCvPreview(null);
+      toast.error(
+        error instanceof ApiError && error.status === 404
+          ? tr({
+              vi: "Không tìm thấy file CV của ứng viên này.",
+              en: "This candidate's CV file could not be found.",
+            })
+          : error instanceof Error
+            ? error.message
+            : t("settings.storageNote"),
+      );
+    } finally {
+      setCvLoadingId(null);
     }
   }
 
@@ -475,9 +482,13 @@ function AdminCandidatesPage() {
             event.stopPropagation();
             void openCvPreview(candidate);
           }}
-          disabled={!candidate.cvFile}
+          disabled={!candidate.cvFile || cvLoadingId !== null}
         >
-          <FileText className="mr-1 h-3.5 w-3.5" />
+          {cvLoadingId === candidate.id ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <FileText className="mr-1 h-3.5 w-3.5" />
+          )}
           {t("admin.candidates.cv")}
         </Button>
       ),
@@ -726,15 +737,22 @@ function AdminCandidatesPage() {
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       className="h-8"
-                      disabled={!selected.cvFile}
+                      disabled={!selected.cvFile || cvLoadingId !== null}
                       onClick={() => void openCvPreview(selected)}
                     >
-                      <Eye className="mr-1.5 h-3.5 w-3.5" /> {t("admin.candidates.cvViewer.title")}
+                      {cvLoadingId === selected.id ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      )}{" "}
+                      {t("admin.candidates.cvViewer.title")}
                     </Button>
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       className="h-8"
