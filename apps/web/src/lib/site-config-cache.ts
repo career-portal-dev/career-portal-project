@@ -26,13 +26,21 @@ export function readStoredSiteConfig(): SiteConfig | null {
 
 // Seed the cache before route head factories run during client initialization.
 let cachedSiteConfig: SiteConfig | null = readStoredSiteConfig();
+/** True once the cache holds the config from the API (not just the local fallback). */
+let cacheIsFromServer = false;
 
 export function setCachedSiteConfig(config: SiteConfig): void {
   cachedSiteConfig = config;
+  cacheIsFromServer = true;
 }
 
 export function getCachedSiteConfig(): SiteConfig | null {
   return cachedSiteConfig;
+}
+
+/** The API config already loaded in this browser session, so loaders need not refetch it. */
+export function getServerSiteConfig(): SiteConfig | null {
+  return cacheIsFromServer ? cachedSiteConfig : null;
 }
 
 /** Return the best available config for synchronous client initialization. */

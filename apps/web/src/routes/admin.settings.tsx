@@ -1670,6 +1670,12 @@ function AdminSettings() {
     }
   };
 
+  /** A primary colour the admin picked themselves (not any preset's primary) survives palette changes. */
+  const customPrimary = !palettePresets.some(
+    (palette) => palette.primary.toLowerCase() === draft.primary.trim().toLowerCase(),
+  );
+  const selectedPreset = palettePresets.find((palette) => palette.id === draft.paletteId);
+
   /** Add or remove an image in the home slideshow (max 5, never empty). */
   const toggleHeroImage = (url: string) => {
     const list = draft.images.heroImages;
@@ -2256,6 +2262,14 @@ function AdminSettings() {
               <h2 className="font-display text-base font-semibold">
                 {t("settings.palette.title")}
               </h2>
+              {customPrimary && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {tr({
+                    vi: "Màu chủ đạo bạn đã tự chọn được giữ nguyên khi đổi bảng màu; bảng màu chỉ áp dụng màu nhấn.",
+                    en: "Your custom primary colour is kept when you switch palettes; the palette only sets the accent colour.",
+                  })}
+                </p>
+              )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {palettePresets.map((palette) => {
                   const selected = draft.paletteId === palette.id;
@@ -2266,7 +2280,7 @@ function AdminSettings() {
                       onClick={() =>
                         update({
                           paletteId: palette.id,
-                          primary: palette.primary,
+                          primary: customPrimary ? draft.primary : palette.primary,
                           accent: palette.accent,
                         })
                       }
@@ -2306,6 +2320,20 @@ function AdminSettings() {
                       onChange={(e) => update({ primary: e.target.value, paletteId: "custom" })}
                     />
                   </div>
+                  {customPrimary && selectedPreset && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="mt-1 h-auto px-0 text-xs"
+                      onClick={() => update({ primary: selectedPreset.primary })}
+                    >
+                      {tr({
+                        vi: `Dùng màu chủ đạo của bảng màu “${selectedPreset.name.vi}”`,
+                        en: `Use the “${selectedPreset.name.en}” palette primary colour`,
+                      })}
+                    </Button>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="accent-color">{t("settings.palette.accent")}</Label>

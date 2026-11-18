@@ -8,8 +8,8 @@ async function request<T>(input: string, init?: RequestInit, authenticated = tru
   return apiRequest<T>(input, { ...init, authenticated });
 }
 
-export function fetchSiteConfig(): Promise<SiteConfig> {
-  return request<SiteConfig>(PUBLIC_BASE, undefined, false);
+export function fetchSiteConfig(init?: RequestInit): Promise<SiteConfig> {
+  return request<SiteConfig>(PUBLIC_BASE, init, false);
 }
 
 export function fetchAdminSiteConfig(): Promise<SiteConfig> {

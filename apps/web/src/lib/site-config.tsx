@@ -19,6 +19,7 @@ import { refreshDocumentBrand } from "@/lib/route-meta";
 import {
   getCachedSiteConfig,
   getInitialSiteConfig,
+  getServerSiteConfig,
   setCachedSiteConfig,
 } from "@/lib/site-config-cache";
 
@@ -853,7 +854,9 @@ function buildPaletteCss(config: SiteConfig): string {
   const tint = Math.min(p.c, 0.06);
   const tone = toneBackground[config.surfaceTone] ?? toneBackground.white;
 
-  // Primary must stay dark enough for white-ish text on buttons and the hero band.
+  // `--primary` is the colour exactly as entered; its foreground switches between light and
+  // dark text for contrast. Surfaces derived from it (sidebar, hero band, secondary text)
+  // stay darkened so their white text remains readable.
   const primaryL = Math.min(p.l, 0.62);
   const primaryFg =
     readableOn(config.primary) === "#ffffff" ? oklch(0.985, 0.004, hue) : oklch(0.2, 0.02, hue);
@@ -868,7 +871,7 @@ function buildPaletteCss(config: SiteConfig): string {
     `--card-foreground: ${oklch(0.24, tint * 0.65, hue)}`,
     `--popover: ${oklch(1, 0, hue)}`,
     `--popover-foreground: ${oklch(0.24, tint * 0.65, hue)}`,
-    `--primary: ${oklch(primaryL, p.c, hue)}`,
+    `--primary: ${oklch(p.l, p.c, hue)}`,
     `--primary-foreground: ${primaryFg}`,
     `--secondary: ${oklch(0.93, tint * 0.22, hue)}`,
     `--secondary-foreground: ${oklch(Math.min(primaryL, 0.32), p.c * 0.9, hue)}`,
@@ -879,7 +882,7 @@ function buildPaletteCss(config: SiteConfig): string {
     `--border: ${oklch(0.906, tint * 0.17, hue)}`,
     `--input: ${oklch(0.895, tint * 0.2, hue)}`,
     `--ring: ${oklch(a.l, a.c, a.h)}`,
-    `--chart-1: ${oklch(primaryL, p.c, hue)}`,
+    `--chart-1: ${oklch(p.l, p.c, hue)}`,
     `--chart-2: ${oklch(a.l, a.c, a.h)}`,
     `--chart-3: ${oklch(Math.min(primaryL + 0.18, 0.72), p.c * 0.8, hue)}`,
     `--sidebar: ${oklch(Math.min(primaryL, 0.3), p.c, hue)}`,
@@ -893,6 +896,7 @@ function buildPaletteCss(config: SiteConfig): string {
     `--elevation-soft: 0 1px 2px ${oklch(0.24, tint, hue, "6%")}, 0 1px 3px ${oklch(0.24, tint, hue, "4%")}`,
     `--elevation-lift: 0 2px 4px ${oklch(0.24, tint, hue, "5%")}, 0 10px 24px -8px ${oklch(0.24, tint, hue, "14%")}`,
     `--elevation-deep: 0 24px 60px -24px ${oklch(0.24, tint, hue, "34%")}`,
+    `--hero-foreground: ${oklch(0.985, 0.004, hue)}`,
     `--gradient-hero: linear-gradient(135deg, ${oklch(Math.min(primaryL, 0.3), p.c, hue)} 0%, ${oklch(Math.min(primaryL + 0.08, 0.42), p.c * 0.95, hue - 6)} 55%, ${oklch(Math.min(primaryL + 0.16, 0.5), p.c * 0.85, hue - 14)} 100%)`,
   ].join(";\n  ");
 
@@ -924,6 +928,7 @@ function buildPaletteCss(config: SiteConfig): string {
     `--sidebar-primary-foreground: ${oklch(0.2, 0.03, a.h)}`,
     `--sidebar-accent: ${oklch(0.28, tint * 0.5, hue)}`,
     `--sidebar-accent-foreground: ${oklch(0.97, 0.006, hue)}`,
+    `--hero-foreground: ${oklch(0.96, 0.006, hue)}`,
     `--gradient-hero: linear-gradient(135deg, ${oklch(0.24, p.c * 0.7, hue)} 0%, ${oklch(0.3, p.c * 0.6, hue - 6)} 55%, ${oklch(0.36, p.c * 0.5, hue - 14)} 100%)`,
   ].join(";\n  ");
 
@@ -931,17 +936,6 @@ function buildPaletteCss(config: SiteConfig): string {
 }
 
 const STYLE_ID = "brand-palette";
-
-function applyPalette(config: SiteConfig) {
-  if (typeof document === "undefined") return;
-  let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
-  if (!el) {
-    el = document.createElement("style");
-    el.id = STYLE_ID;
-    document.head.appendChild(el);
-  }
-  el.textContent = buildPaletteCss(config);
-}
 
 function isConfigLike(value: unknown): value is SiteConfig {
   if (!value || typeof value !== "object") return false;
@@ -1065,6 +1059,37 @@ function mergeConfig(stored: SiteConfig): SiteConfig {
   };
 }
 
+/** Normalizes a config from the API or storage; null when the value is not a site config. */
+export function parseSiteConfig(value: unknown): SiteConfig | null {
+  return isConfigLike(value) ? mergeConfig(value) : null;
+}
+
+/** SSR waits at most this long for the API before rendering with the defaults. */
+const SSR_CONFIG_TIMEOUT_MS = 4000;
+
+/**
+ * Root-loader helper. On the server (every request) and on the first client load it reads
+ * the config from the API; later client navigations reuse the config already loaded.
+ * Returns null when the API is unavailable, so pages fall back to the defaults.
+ */
+export async function loadSiteConfig(): Promise<SiteConfig | null> {
+  const isServer = typeof window === "undefined";
+  if (!isServer) {
+    const known = getServerSiteConfig();
+    if (known) return known;
+  }
+  try {
+    const data = await fetchSiteConfig(
+      isServer ? { signal: AbortSignal.timeout(SSR_CONFIG_TIMEOUT_MS) } : undefined,
+    );
+    const config = parseSiteConfig(data);
+    if (config) setCachedSiteConfig(config);
+    return config;
+  } catch {
+    return null;
+  }
+}
+
 type SiteConfigValue = {
   config: SiteConfig;
   save: (next: SiteConfig) => Promise<boolean>;
@@ -1073,26 +1098,29 @@ type SiteConfigValue = {
 
 const SiteConfigContext = createContext<SiteConfigValue | null>(null);
 
-export function SiteConfigProvider({ children }: { children: ReactNode }) {
-  const initialConfig = getInitialSiteConfig();
-  const [config, setConfig] = useState<SiteConfig>(() =>
-    initialConfig && isConfigLike(initialConfig) ? mergeConfig(initialConfig) : defaultSiteConfig,
-  );
+/**
+ * `initialConfig` comes from the root loader (fetched during SSR), so the server HTML and the
+ * first client render use the same config: no default-theme flash and no hydration mismatch.
+ */
+export function SiteConfigProvider({
+  children,
+  initialConfig,
+}: {
+  children: ReactNode;
+  initialConfig?: SiteConfig | null;
+}) {
+  const [config, setConfig] = useState<SiteConfig>(() => initialConfig ?? defaultSiteConfig);
 
-  // Bộ nhớ cục bộ chỉ là fallback hiển thị tức thời; API vẫn là nguồn chính.
+  // API không phản hồi lúc SSR: dùng tạm cấu hình đã lưu cục bộ (sau hydration, không gây lệch).
   useEffect(() => {
-    // Root loader/cache may already contain the authoritative API config.
-    if (getCachedSiteConfig()) return;
-    const stored = getInitialSiteConfig();
-    if (stored && isConfigLike(stored)) {
-      const merged = mergeConfig(stored);
-      setConfig(merged);
-      setCachedSiteConfig(merged);
-    }
-  }, []);
+    if (initialConfig || getServerSiteConfig()) return;
+    const stored = parseSiteConfig(getInitialSiteConfig());
+    if (stored) setConfig(stored);
+  }, [initialConfig]);
 
-  // Cấu hình từ database (công khai) ghi đè fallback cục bộ khi có phản hồi.
+  // Chỉ gọi lại API khi loader không lấy được cấu hình (API lỗi/chậm lúc SSR).
   useEffect(() => {
+    if (initialConfig) return;
     let cancelled = false;
     fetchSiteConfig()
       .then((data) => {
@@ -1109,11 +1137,7 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    applyPalette(config);
-  }, [config]);
+  }, [initialConfig]);
 
   const save = useCallback(async (next: SiteConfig) => {
     try {
@@ -1158,8 +1182,15 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SiteConfigValue>(() => ({ config, save, reset }), [config, save, reset]);
+  const paletteCss = useMemo(() => buildPaletteCss(config), [config]);
 
-  return <SiteConfigContext.Provider value={value}>{children}</SiteConfigContext.Provider>;
+  return (
+    <SiteConfigContext.Provider value={value}>
+      {/* Rendered (not injected in an effect) so the server HTML already has the brand colours. */}
+      <style id={STYLE_ID} dangerouslySetInnerHTML={{ __html: paletteCss }} />
+      {children}
+    </SiteConfigContext.Provider>
+  );
 }
 
 /** Read-only fallback so a stale module instance never blanks the screen. */

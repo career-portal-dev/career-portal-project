@@ -198,6 +198,8 @@
 
 @utility hero-gradient {
   background-image: var(--gradient-hero);
+  /* The hero band is always dark, so its text stays light even with a light primary colour. */
+  --primary-foreground: var(--hero-foreground, oklch(0.985 0 0));
 }
 
 @utility eyebrow {

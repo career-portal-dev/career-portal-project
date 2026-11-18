@@ -13,7 +13,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/lib/i18n";
 import { LanguageConfigProvider } from "@/lib/language-config";
-import { SiteConfigProvider } from "@/lib/site-config";
+import { SiteConfigProvider, loadSiteConfig } from "@/lib/site-config";
 import { FormConfigProvider } from "@/lib/form-config";
 import { JobsProvider } from "@/lib/jobs-store";
 import { TaxonomyProvider } from "@/lib/taxonomy-store";
@@ -23,7 +23,11 @@ import { AuthProvider } from "@/lib/auth-store";
 import { Toaster } from "@/components/ui/sonner";
 import { SquareFavicon } from "@/components/site/SquareFavicon";
 import { getSiteBrand } from "@/lib/route-meta";
-import { getFaviconLink, getInitialSiteConfig } from "@/lib/site-config-cache";
+import {
+  getFaviconLink,
+  getServerSiteConfig,
+  setCachedSiteConfig,
+} from "@/lib/site-config-cache";
 import { translate } from "@/lib/i18n";
 
 function NotFoundComponent() {
@@ -114,8 +118,27 @@ function RouteProgressBar() {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: () => ({ siteConfig: getInitialSiteConfig() }),
-  head: () => ({
+  // Fetched during SSR so the first paint already uses the saved brand, colours and images.
+  loader: async () => ({ siteConfig: await loadSiteConfig() }),
+  // Reuse the config across client navigations instead of refetching it.
+  staleTime: Infinity,
+  head: ({ loaderData }) => {
+    // On hydration the client cache may only hold the localStorage fallback: seed it from the
+    // loader data so titles and the favicon match the server render. Once a server config is
+    // cached (SSR loader, or an admin save), keep it instead of the older loader snapshot.
+    if (loaderData?.siteConfig && !getServerSiteConfig()) {
+      setCachedSiteConfig(loaderData.siteConfig);
+    }
+    return rootHead();
+  },
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
+
+function rootHead() {
+  return {
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
@@ -142,12 +165,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       getFaviconLink(),
     ],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
-  notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
-});
+  };
+}
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
@@ -165,12 +184,13 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { siteConfig } = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageConfigProvider>
         <I18nProvider>
-          <SiteConfigProvider>
+          <SiteConfigProvider initialConfig={siteConfig}>
             <FormConfigProvider>
               <TaxonomyProvider>
                 <JobsProvider>
