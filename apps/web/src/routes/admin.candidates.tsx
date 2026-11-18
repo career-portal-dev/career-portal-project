@@ -10,6 +10,7 @@ import {
   MapPin,
   Phone,
   Search,
+  Sparkles,
   Star,
   X,
 } from "lucide-react";
@@ -689,22 +690,6 @@ function AdminCandidatesPage() {
                 <DialogDescription>
                   {t("admin.candidates.profile")} · {tr(selected.experience)}
                 </DialogDescription>
-                {selected.highlights.length > 0 && (
-                  <ul
-                    aria-label={tr({ vi: "Điểm nổi bật", en: "Highlights" })}
-                    className="flex flex-wrap gap-1.5 pt-1.5"
-                  >
-                    {selected.highlights.map((item) => (
-                      <li
-                        key={item.en}
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-medium text-foreground"
-                      >
-                        <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="truncate">{tr(item)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </DialogHeader>
 
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -760,6 +745,17 @@ function AdminCandidatesPage() {
                     {jobTitleLabel(selected)}
                   </span>
                 </span>
+                {selected.highlights.length > 0 && (
+                  <span className="flex min-w-0 items-start gap-2 text-muted-foreground sm:col-span-3">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="shrink-0">
+                      {tr({ vi: "Điểm nổi bật:", en: "Highlights:" })}
+                    </span>
+                    <span className="min-w-0 font-medium text-foreground">
+                      {selected.highlights.map((item) => tr(item)).join(" · ")}
+                    </span>
+                  </span>
+                )}
               </div>
 
               <CandidateFormFields
