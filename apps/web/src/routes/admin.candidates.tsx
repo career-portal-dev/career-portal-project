@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Briefcase,
   Check,
   Download,
   Eye,
@@ -412,6 +413,13 @@ function AdminCandidatesPage() {
   };
 
   const displayedRating = hoverRating ?? editRating ?? selected?.rating ?? 0;
+
+  /** Applied job title for a candidate, or "—" when it has no job. */
+  const jobTitleLabel = (candidate: Candidate) => {
+    const jobTitle =
+      candidate.jobTitle ?? (candidate.jobId ? getJob(candidate.jobId)?.title : undefined);
+    return jobTitle ? tr(jobTitle) : "—";
+  };
   async function submitCandidate() {
     if (!selected || isSubmitting) return;
     setIsSubmitting(true);
@@ -462,10 +470,7 @@ function AdminCandidatesPage() {
     {
       header: t("admin.candidates.col.job"),
       className: "w-[200px] truncate text-muted-foreground",
-      cell: (candidate) => {
-        const jobTitle = candidate.jobTitle ?? (candidate.jobId ? getJob(candidate.jobId)?.title : undefined);
-        return jobTitle ? tr(jobTitle) : "—";
-      },
+      cell: (candidate) => jobTitleLabel(candidate),
     },
     { header: t("admin.candidates.col.stage"), className: "w-[140px]", cell: (candidate) => <Badge variant="secondary">{tr(stageLabels[candidate.stage])}</Badge> },
     { header: t("admin.candidates.col.applied"), className: "w-[130px] text-muted-foreground", cell: (candidate) => candidate.appliedAt },
@@ -726,6 +731,15 @@ function AdminCandidatesPage() {
                     ))}
                   </div>
                 </div>
+                <span className="flex min-w-0 items-center gap-2 text-muted-foreground sm:col-span-3">
+                  <Briefcase className="h-4 w-4 shrink-0" />
+                  <span className="shrink-0">
+                    {tr({ vi: "Vị trí ứng tuyển:", en: "Applied position:" })}
+                  </span>
+                  <span className="truncate font-medium text-foreground">
+                    {jobTitleLabel(selected)}
+                  </span>
+                </span>
               </div>
 
               <div className="rounded-md border border-border bg-surface p-4">
