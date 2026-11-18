@@ -291,12 +291,64 @@ function LayoutThumb({ id }: { id: LayoutId }) {
   );
 }
 
+const UPLOAD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+const UPLOAD_IMAGE_MAX_BYTES = 1024 * 1024;
+
+/** File picker that validates an image and hands it back as a data URL. */
+function ImageUploadButton({
+  label,
+  onUpload,
+}: {
+  label: Localized;
+  onUpload: (dataUrl: string) => void;
+}) {
+  const { t, tr } = useI18n();
+
+  const onFile = (file: File) => {
+    if (!UPLOAD_IMAGE_TYPES.includes(file.type)) {
+      toast.error(t("settings.brand.uploadInvalid"));
+      return;
+    }
+    if (file.size > UPLOAD_IMAGE_MAX_BYTES) {
+      toast.error(t("settings.brand.uploadTooLarge"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = typeof reader.result === "string" ? reader.result : "";
+      if (url) onUpload(url);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring">
+        <Upload className="h-4 w-4" />
+        {tr(label)}
+        <input
+          type="file"
+          accept={UPLOAD_IMAGE_TYPES.join(",")}
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <span className="text-xs text-muted-foreground">{t("settings.brand.uploadHint")}</span>
+    </div>
+  );
+}
+
 function ImagePicker({
   label,
   library,
   value,
   onChange,
   customLabel,
+  uploadable,
 }: {
   label: string;
   library: MediaItem[];
@@ -304,6 +356,8 @@ function ImagePicker({
   onChange: (url: string) => void;
   /** When set, an image that is not in the library is shown as a selected tile. */
   customLabel?: Localized;
+  /** Show an upload button under the library. */
+  uploadable?: boolean;
 }) {
   const { t, tr } = useI18n();
   const custom = value.trim();
@@ -347,6 +401,14 @@ function ImagePicker({
           </button>
         ))}
       </div>
+      {uploadable && (
+        <div className="mt-3">
+          <ImageUploadButton
+            label={{ vi: "Tải ảnh lên", en: "Upload image" }}
+            onUpload={onChange}
+          />
+        </div>
+      )}
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1602,6 +1664,29 @@ function AdminSettings() {
     }
   };
 
+  /** Add or remove an image in the home slideshow (max 5, never empty). */
+  const toggleHeroImage = (url: string) => {
+    const list = draft.images.heroImages;
+    const active = list.includes(url);
+    if (!active && list.length >= 5) {
+      toast.error(
+        tr({
+          vi: "Chỉ được chọn tối đa 5 ảnh cho băng ảnh trang chủ.",
+          en: "You can select at most 5 hero images.",
+        }),
+      );
+      return;
+    }
+    const next = active ? list.filter((item) => item !== url) : [...list, url];
+    update({
+      images: {
+        ...draft.images,
+        heroImages: next.length ? next : [url],
+        hero: next[0] ?? url,
+      },
+    });
+  };
+
   const onLogoFile = (file: File) => {
     const allowed = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!allowed.includes(file.type)) {
@@ -2282,18 +2367,24 @@ function AdminSettings() {
                   library={heroLibrary}
                   value={draft.images.hero}
                   onChange={(hero) => update({ images: { ...draft.images, hero } })}
+                  customLabel={{ vi: "Ảnh đã tải lên", en: "Uploaded image" }}
+                  uploadable
                 />
                 <ImagePicker
                   label={t("settings.images.culture")}
                   library={cultureLibrary}
                   value={draft.images.culture}
                   onChange={(culture) => update({ images: { ...draft.images, culture } })}
+                  customLabel={{ vi: "Ảnh đã tải lên", en: "Uploaded image" }}
+                  uploadable
                 />
                 <ImagePicker
                   label={t("settings.images.logo")}
                   library={logoLibrary}
                   value={draft.images.logo}
                   onChange={(logo) => update({ images: { ...draft.images, logo } })}
+                  customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
+                  uploadable
                 />
               </div>
 
@@ -2315,7 +2406,33 @@ function AdminSettings() {
                     en: "Images auto-rotate every 3 seconds. A single image stays static.",
                   })}
                 </p>
+                <div className="mt-4">
+                  <ImageUploadButton
+                    label={{ vi: "Tải ảnh lên băng ảnh", en: "Upload slideshow image" }}
+                    onUpload={(url) => toggleHeroImage(url)}
+                  />
+                </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {draft.images.heroImages
+                    .filter((url) => url.trim() && !heroLibrary.some((item) => item.url === url))
+                    .map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => toggleHeroImage(url)}
+                        className="overflow-hidden rounded-lg border-2 border-accent text-left"
+                      >
+                        <img
+                          src={url}
+                          alt={tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
+                          className="h-24 w-full object-cover"
+                        />
+                        <span className="block px-3 py-2 text-xs">
+                          {tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
+                          {` · ${String(draft.images.heroImages.indexOf(url) + 1)}`}
+                        </span>
+                      </button>
+                    ))}
                   {heroLibrary.map((item) => {
                     const list = draft.images.heroImages;
                     const active = list.includes(item.url);
@@ -2323,27 +2440,7 @@ function AdminSettings() {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => {
-                          if (!active && list.length >= 5) {
-                            toast.error(
-                              tr({
-                                vi: "Chỉ được chọn tối đa 5 ảnh cho băng ảnh trang chủ.",
-                                en: "You can select at most 5 hero images.",
-                              }),
-                            );
-                            return;
-                          }
-                          const next = active
-                            ? list.filter((url) => url !== item.url)
-                            : [...list, item.url];
-                          update({
-                            images: {
-                              ...draft.images,
-                              heroImages: next.length ? next : [item.url],
-                              hero: (next[0] ?? item.url) as string,
-                            },
-                          });
-                        }}
+                        onClick={() => toggleHeroImage(item.url)}
                         className={cn(
                           "overflow-hidden rounded-lg border-2 text-left",
                           active ? "border-accent" : "border-border",
