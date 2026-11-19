@@ -24,7 +24,13 @@ import { canAccess, sectionForPath, type AdminSection } from "@/lib/permissions"
 import { useSiteConfig } from "@/lib/site-config";
 
 const navItems = [
-  { to: "/admin", key: "admin.nav.overview", icon: LayoutDashboard, exact: true, section: "overview" },
+  {
+    to: "/admin",
+    key: "admin.nav.overview",
+    icon: LayoutDashboard,
+    exact: true,
+    section: "overview",
+  },
   { to: "/admin/jobs", key: "admin.nav.jobs", icon: Briefcase, exact: false, section: "jobs" },
   {
     to: "/admin/candidates",
@@ -50,7 +56,13 @@ const navItems = [
     section: "settings",
   },
   { to: "/admin/users", key: "admin.nav.users", icon: ShieldCheck, exact: false, section: "users" },
-  { to: "/admin/contacts", key: "admin.nav.contacts", icon: Mailbox, exact: false, section: "contacts" },
+  {
+    to: "/admin/contacts",
+    key: "admin.nav.contacts",
+    icon: Mailbox,
+    exact: false,
+    section: "contacts",
+  },
 ] as const satisfies ReadonlyArray<{
   to: string;
   key: TranslationKey;
@@ -119,68 +131,84 @@ export function AdminLayout({
 
   return (
     <div className="flex min-h-screen w-full bg-surface">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground lg:flex">
-        <Link to="/" className="flex items-center gap-2.5 px-2">
-          {config.images.logo?.trim() ? (
-            <span className="flex h-10 min-w-0 max-w-[112px] shrink items-center bg-white px-1.5 py-1">
-              <BrandMark size={32} fit="auto" className="max-w-full" />
-            </span>
-          ) : (
-            <BrandMark size={36} tone="sidebar" />
-          )}
-          <span className="min-w-0">
-            <span className="block truncate font-display text-sm font-semibold">
+      {/* The right border is drawn per part: the brand band uses the page-header border
+          colour, the coloured menu below keeps the sidebar border colour. */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
+        {/* Brand header: same look as the public SiteHeader (light band, logo at its own
+            aspect ratio, brand name + tagline). The logo is kept compact (36px high, ≤84px
+            wide) so the text keeps room in the 256px sidebar; the tagline may wrap to two
+            lines instead of being cut off. Its height matches the page header on the right
+            so both bottom borders line up. */}
+        <Link
+          to="/"
+          aria-label={tr(config.copy.brand)}
+          className="flex h-[81px] shrink-0 items-center gap-2.5 border-r border-b border-border bg-background px-4 text-foreground"
+        >
+          <BrandMark
+            size={36}
+            fit="auto"
+            className="max-w-[84px] shrink-0 mix-blend-multiply dark:mix-blend-normal"
+          />
+          <span className="min-w-0 flex-1">
+            <span
+              className="block truncate font-display text-base leading-tight font-semibold tracking-tight"
+              title={tr(config.copy.brand)}
+            >
               {tr(config.copy.brand)}
             </span>
-            <span className="block truncate text-xs text-sidebar-foreground/60">HR Console</span>
+            <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+              {tr(config.copy.tagline).trim() || "HR Console"}
+            </span>
           </span>
         </Link>
 
-        <nav className="mt-8 space-y-1">
-          {allowed.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              activeOptions={{ exact: item.exact }}
-              activeProps={{
-                className: "bg-sidebar-accent text-sidebar-accent-foreground before:scale-y-100",
-              }}
-              inactiveProps={{ className: "text-sidebar-foreground/65 before:scale-y-0" }}
-              className="relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-primary before:transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{t(item.key)}</span>
-            </Link>
-          ))}
-        </nav>
+        <div className="flex min-h-0 flex-1 flex-col border-r border-sidebar-border px-3 pb-5">
+          <nav className="mt-5 space-y-1">
+            {allowed.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: item.exact }}
+                activeProps={{
+                  className: "bg-sidebar-accent text-sidebar-accent-foreground before:scale-y-100",
+                }}
+                inactiveProps={{ className: "text-sidebar-foreground/65 before:scale-y-0" }}
+                className="relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-primary before:transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t(item.key)}</span>
+              </Link>
+            ))}
+          </nav>
 
-        <div className="mt-auto space-y-1 border-t border-sidebar-border pt-3">
-          <div className="px-3 py-1">
-            <p className="truncate text-sm font-medium">{currentUser.name}</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">
-              {currentUser.role === "admin"
-                ? tr({ vi: "Quản trị viên", en: "Administrator" })
-                : tr({ vi: "Cộng tác viên (Mod)", en: "Moderator" })}
-            </p>
+          <div className="mt-auto space-y-1 border-t border-sidebar-border pt-3">
+            <div className="px-3 py-1">
+              <p className="truncate text-sm font-medium">{currentUser.name}</p>
+              <p className="truncate text-xs text-sidebar-foreground/60">
+                {currentUser.role === "admin"
+                  ? tr({ vi: "Quản trị viên", en: "Administrator" })
+                  : tr({ vi: "Cộng tác viên (Mod)", en: "Moderator" })}
+              </p>
+            </div>
+            <Link
+              to="/"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("admin.backToSite")}</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                void navigate({ to: "/admin/login", search: { returnTo: pathname } });
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span className="truncate">{tr({ vi: "Đăng xuất", en: "Sign out" })}</span>
+            </button>
           </div>
-          <Link
-            to="/"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0" />
-            <span className="truncate">{t("admin.backToSite")}</span>
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              logout();
-              void navigate({ to: "/admin/login", search: { returnTo: pathname } });
-            }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            <span className="truncate">{tr({ vi: "Đăng xuất", en: "Sign out" })}</span>
-          </button>
         </div>
       </aside>
 
