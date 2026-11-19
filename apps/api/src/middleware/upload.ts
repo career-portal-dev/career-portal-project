@@ -31,10 +31,13 @@ const cvStorage = multer.diskStorage({
   },
 });
 
-/** Chỉ nhận file ảnh, tối đa 1MB (khớp giới hạn ở frontend). */
+/** Dung lượng tối đa của ảnh bìa tin tức (khớp giới hạn ở frontend). */
+export const COVER_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Chỉ nhận file ảnh, tối đa 5MB. */
 export const uploadCover = multer({
   storage,
-  limits: { fileSize: 1024 * 1024 },
+  limits: { fileSize: COVER_MAX_BYTES },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) {
       cb(new Error("Only image files are allowed"));

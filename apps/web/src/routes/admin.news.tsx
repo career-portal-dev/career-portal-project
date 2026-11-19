@@ -71,6 +71,7 @@ import {
 } from "@/services/admin-news.api";
 import { useSiteConfig } from "@/lib/site-config";
 import { createRouteMeta } from "@/lib/route-meta";
+import { ApiError } from "@/lib/api/request";
 
 const RichTextEditor = lazy(() =>
   import("@/components/admin/RichTextEditor").then((m) => ({ default: m.RichTextEditor })),
@@ -92,6 +93,8 @@ const coverLibrary = [...heroLibrary, ...cultureLibrary].filter(
 );
 
 const PAGE_SIZE = 10;
+/** Max cover image size; matches the API limit. */
+const COVER_MAX_BYTES = 5 * 1024 * 1024;
 const ALL = "__all__";
 
 function AdminNewsPage() {
@@ -246,8 +249,8 @@ function AdminNewsPage() {
       toast.error(tr({ vi: "Chỉ chấp nhận tệp hình ảnh.", en: "Images only." }));
       return;
     }
-    if (file.size > 1024 * 1024) {
-      toast.error(tr({ vi: "Ảnh tối đa 1MB.", en: "Image must be under 1MB." }));
+    if (file.size > COVER_MAX_BYTES) {
+      toast.error(tr({ vi: "Ảnh tối đa 5MB.", en: "Image must be under 5MB." }));
       return;
     }
     setIsUploading(true);
@@ -256,9 +259,16 @@ function AdminNewsPage() {
       setDraft((current) => (current ? { ...current, cover: url } : current));
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." }),
+        error instanceof ApiError && error.code === "FILE_TOO_LARGE"
+          ? tr({ vi: "Ảnh tối đa 5MB.", en: "Image must be under 5MB." })
+          : error instanceof ApiError && error.status === 413
+            ? tr({
+                vi: "Máy chủ từ chối ảnh vì dung lượng quá lớn.",
+                en: "The server rejected the image because it is too large.",
+              })
+            : error instanceof Error
+              ? error.message
+              : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." }),
       );
     } finally {
       setIsUploading(false);
@@ -691,6 +701,17 @@ function AdminNewsPage() {
                 <div className="space-y-2">
                   <Label>{tr({ vi: "Ảnh đại diện", en: "Cover image" })}</Label>
                   <div className="flex flex-wrap items-center gap-3">
+                    {draft.cover.trim() &&
+                      !draft.cover.startsWith("data:") &&
+                      !coverLibrary.some((item) => item.url === draft.cover) && (
+                        <div className="overflow-hidden rounded-lg border-2 border-accent">
+                          <img
+                            src={draft.cover}
+                            alt={tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
+                            className="h-16 w-24 object-cover"
+                          />
+                        </div>
+                      )}
                     {coverLibrary.map((item) => (
                       <button
                         key={item.id}
@@ -719,6 +740,9 @@ function AdminNewsPage() {
                         ? tr({ vi: "Đang tải…", en: "Uploading…" })
                         : tr({ vi: "Tải ảnh lên", en: "Upload" })}
                     </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {tr({ vi: "Ảnh tối đa 5MB.", en: "Up to 5MB." })}
+                    </span>
                     <input
                       ref={fileRef}
                       type="file"
@@ -731,13 +755,6 @@ function AdminNewsPage() {
                       }}
                     />
                   </div>
-                  {draft.cover && !draft.cover.startsWith("data:") && (
-                    <img
-                      src={draft.cover}
-                      alt=""
-                      className="h-24 w-40 rounded-lg border border-border object-cover"
-                    />
-                  )}
                 </div>
 
                 <label className="flex items-center gap-2 text-sm">
