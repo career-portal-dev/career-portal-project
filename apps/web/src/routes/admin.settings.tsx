@@ -368,7 +368,9 @@ function ImageUploadButton({
     <div className="flex flex-wrap items-center gap-3">
       <label
         className={cn(
-          "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring",
+          // `relative` keeps the sr-only (absolute) file input inside the tab's scroll area;
+          // without it the input escapes to <body> and adds a page-level scrollbar.
+          "relative inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring",
           progress && "pointer-events-none opacity-60",
         )}
       >
@@ -2080,7 +2082,7 @@ function AdminSettings() {
                       customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
                     />
                     <div className="flex flex-wrap items-center gap-3">
-                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40">
+                      <label className="relative inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40">
                         <Upload className="h-4 w-4" />
                         {t("settings.brand.upload")}
                         <input
