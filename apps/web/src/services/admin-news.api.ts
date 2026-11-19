@@ -165,6 +165,27 @@ export async function deleteNewsCategory(id: string): Promise<void> {
   await request<unknown>(`${ADMIN_BASE}/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+/** An uploaded news cover image (the news form's image library). */
+export type UploadedNewsImage = {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+};
+
+/** Uploaded news cover images, newest first. */
+export function fetchNewsImageUploads(): Promise<UploadedNewsImage[]> {
+  return request<UploadedNewsImage[]>(`${ADMIN_BASE}/uploads`);
+}
+
+/** Deletes an uploaded news image; fails with code IMAGE_IN_USE while an article uses it. */
+export async function deleteNewsImageUpload(name: string): Promise<void> {
+  await request<unknown>(`${ADMIN_BASE}/uploads/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
+/** Uploads one news cover image (PNG, JPG, WebP or SVG, up to 15MB) and returns its URL. */
 export async function uploadNewsCover(file: File): Promise<string> {
   const form = new FormData();
   form.append("cover", file);

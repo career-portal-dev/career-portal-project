@@ -6,13 +6,13 @@ import {
   Plus,
   Search,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { ImageUploadButton, LibraryTile } from "@/components/admin/ImageLibrary";
 import { requireAdminSession } from "@/lib/admin-route-guard";
 import {
   AlertDialog,
@@ -63,11 +63,14 @@ import {
   createNewsCategory,
   deleteNews,
   deleteNewsCategory,
+  deleteNewsImageUpload,
   fetchNews,
   fetchNewsCategories,
+  fetchNewsImageUploads,
   fetchAdminNewsStats,
   updateNews,
   uploadNewsCover,
+  type UploadedNewsImage,
 } from "@/services/admin-news.api";
 import { useSiteConfig } from "@/lib/site-config";
 import { createRouteMeta } from "@/lib/route-meta";
@@ -93,8 +96,6 @@ const coverLibrary = [...heroLibrary, ...cultureLibrary].filter(
 );
 
 const PAGE_SIZE = 10;
-/** Max cover image size; matches the API limit. */
-const COVER_MAX_BYTES = 5 * 1024 * 1024;
 const ALL = "__all__";
 
 function AdminNewsPage() {
@@ -123,7 +124,28 @@ function AdminNewsPage() {
   const [categoryName, setCategoryName] = useState({ vi: "", en: "" });
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  // Cover image library: uploaded news images (null until first loaded with the form).
+  const [newsUploads, setNewsUploads] = useState<UploadedNewsImage[] | null>(null);
+  const [pendingImageDelete, setPendingImageDelete] = useState<UploadedNewsImage | null>(null);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const formOpen = draft !== null;
+
+  // Load the uploaded images the first time the article form opens.
+  useEffect(() => {
+    if (!formOpen || newsUploads !== null) return;
+    let cancelled = false;
+    fetchNewsImageUploads()
+      .then((items) => {
+        if (!cancelled) setNewsUploads(items);
+      })
+      .catch(() => {
+        // Library unavailable: the form still offers the sample images and uploading.
+        if (!cancelled) setNewsUploads([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [formOpen, newsUploads]);
 
   // Tải danh sách chuyên mục một lần cho dropdown lọc + select trong form.
   useEffect(() => {
@@ -244,34 +266,53 @@ function AdminNewsPage() {
     }
   };
 
-  const onCoverFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error(tr({ vi: "Chỉ chấp nhận tệp hình ảnh.", en: "Images only." }));
+  /** Adds freshly uploaded images to the library and selects the first one as the cover. */
+  const onCoversUploaded = (urls: string[]) => {
+    const now = new Date().toISOString();
+    setNewsUploads((current) => [
+      ...urls.map((url) => ({ name: url.split("/").pop() ?? url, url, size: 0, uploadedAt: now })),
+      ...(current ?? []),
+    ]);
+    if (urls[0]) setDraft((current) => (current ? { ...current, cover: urls[0]! } : current));
+  };
+
+  /** Asks to delete an uploaded image; the image selected in the open article can't be. */
+  const requestImageDelete = (image: UploadedNewsImage) => {
+    if (draft?.cover === image.url) {
+      toast.error(
+        tr({
+          vi: "Ảnh đang được dùng cho bài viết này. Hãy chọn ảnh khác trước khi xóa.",
+          en: "This article uses the image. Pick another image before deleting it.",
+        }),
+      );
       return;
     }
-    if (file.size > COVER_MAX_BYTES) {
-      toast.error(tr({ vi: "Ảnh tối đa 5MB.", en: "Image must be under 5MB." }));
-      return;
-    }
-    setIsUploading(true);
+    setPendingImageDelete(image);
+  };
+
+  const confirmImageDelete = async () => {
+    if (!pendingImageDelete || isDeletingImage) return;
+    setIsDeletingImage(true);
     try {
-      const url = await uploadNewsCover(file);
-      setDraft((current) => (current ? { ...current, cover: url } : current));
+      await deleteNewsImageUpload(pendingImageDelete.name);
+      setNewsUploads((current) =>
+        (current ?? []).filter((item) => item.name !== pendingImageDelete.name),
+      );
+      toast.success(tr({ vi: "Đã xóa ảnh.", en: "Image deleted." }));
+      setPendingImageDelete(null);
     } catch (error) {
       toast.error(
-        error instanceof ApiError && error.code === "FILE_TOO_LARGE"
-          ? tr({ vi: "Ảnh tối đa 5MB.", en: "Image must be under 5MB." })
-          : error instanceof ApiError && error.status === 413
-            ? tr({
-                vi: "Máy chủ từ chối ảnh vì dung lượng quá lớn.",
-                en: "The server rejected the image because it is too large.",
-              })
-            : error instanceof Error
-              ? error.message
-              : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." }),
+        error instanceof ApiError && error.code === "IMAGE_IN_USE"
+          ? tr({
+              vi: "Ảnh đang được dùng trong một bài viết khác nên không xóa được.",
+              en: "Another article uses this image, so it can't be deleted.",
+            })
+          : error instanceof Error
+            ? error.message
+            : tr({ vi: "Không xóa được ảnh.", en: "Failed to delete the image." }),
       );
     } finally {
-      setIsUploading(false);
+      setIsDeletingImage(false);
     }
   };
 
@@ -700,63 +741,46 @@ function AdminNewsPage() {
 
                 <div className="space-y-2">
                   <Label>{tr({ vi: "Ảnh đại diện", en: "Cover image" })}</Label>
-                  <div className="flex flex-wrap items-center gap-3">
+                  {/* Same image library as the site settings: uploaded images (deletable) first,
+                      then the sample images; the selected one is the article cover. */}
+                  <div className="grid max-h-80 grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
                     {draft.cover.trim() &&
-                      !draft.cover.startsWith("data:") &&
-                      !coverLibrary.some((item) => item.url === draft.cover) && (
-                        <div className="overflow-hidden rounded-lg border-2 border-accent">
-                          <img
-                            src={draft.cover}
-                            alt={tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
-                            className="h-16 w-24 object-cover"
-                          />
-                        </div>
-                      )}
-                    {coverLibrary.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, cover: item.url })}
-                        className={`overflow-hidden rounded-lg border-2 transition-colors ${
-                          draft.cover === item.url ? "border-accent" : "border-transparent"
-                        }`}
-                      >
-                        <img
-                          src={item.url}
-                          alt={tr(item.label)}
-                          className="h-16 w-24 object-cover"
+                      !coverLibrary.some((item) => item.url === draft.cover) &&
+                      !(newsUploads ?? []).some((item) => item.url === draft.cover) && (
+                        <LibraryTile
+                          src={draft.cover}
+                          label={tr({ vi: "Ảnh hiện tại", en: "Current image" })}
+                          selected
                         />
-                      </button>
+                      )}
+                    {(newsUploads ?? []).map((item) => (
+                      <LibraryTile
+                        key={item.name}
+                        src={item.url}
+                        label={tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
+                        selected={draft.cover === item.url}
+                        onSelect={() => setDraft({ ...draft, cover: item.url })}
+                        onRemove={() => requestImageDelete(item)}
+                        removeLabel={tr({ vi: "Xóa ảnh", en: "Delete image" })}
+                      />
+                    ))}
+                    {coverLibrary.map((item) => (
+                      <LibraryTile
+                        key={item.id}
+                        src={item.url}
+                        label={tr(item.label)}
+                        selected={draft.cover === item.url}
+                        onSelect={() => setDraft({ ...draft, cover: item.url })}
+                      />
                     ))}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileRef.current?.click()}
-                      disabled={isUploading || isSaving}
-                    >
-                      <Upload className="h-4 w-4" />
-                      {isUploading
-                        ? tr({ vi: "Đang tải…", en: "Uploading…" })
-                        : tr({ vi: "Tải ảnh lên", en: "Upload" })}
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      {tr({ vi: "Ảnh tối đa 5MB.", en: "Up to 5MB." })}
-                    </span>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void onCoverFile(file);
-                        e.target.value = "";
-                      }}
-                    />
-                  </div>
+                  <ImageUploadButton
+                    label={{ vi: "Tải ảnh lên", en: "Upload images" }}
+                    upload={uploadNewsCover}
+                    onUploaded={onCoversUploaded}
+                    onBusyChange={setIsUploading}
+                    disabled={isSaving}
+                  />
                 </div>
 
                 <label className="flex items-center gap-2 text-sm">
@@ -832,6 +856,45 @@ function AdminNewsPage() {
             <AlertDialogCancel>{tr({ vi: "Hủy", en: "Cancel" })}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void removeArticle()}>
               {tr({ vi: "Xóa", en: "Delete" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingImageDelete !== null}
+        onOpenChange={(open) => !open && !isDeletingImage && setPendingImageDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr({ vi: "Xóa ảnh này?", en: "Delete this image?" })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr({
+                vi: "Ảnh sẽ bị xóa khỏi máy chủ và không thể khôi phục.",
+                en: "The image is removed from the server and cannot be restored.",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingImageDelete && (
+            <img
+              src={pendingImageDelete.url}
+              alt=""
+              className="max-h-40 w-full rounded-md border border-border bg-surface object-contain"
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingImage}>
+              {tr({ vi: "Hủy", en: "Cancel" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingImage}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmImageDelete();
+              }}
+            >
+              {isDeletingImage && <Loader2 className="h-4 w-4 animate-spin" />}
+              {tr({ vi: "Xóa ảnh", en: "Delete image" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -34,6 +34,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { ImageUploadButton, LibraryTile } from "@/components/admin/ImageLibrary";
 import { requireAdminSession } from "@/lib/admin-route-guard";
 import {
   AlertDialog,
@@ -301,162 +302,6 @@ function LayoutThumb({ id }: { id: LayoutId }) {
   );
 }
 
-const UPLOAD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
-/** Images-tab uploads are stored as files on the server (matches the API limit). */
-const UPLOAD_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
-
-const uploadTooLarge = {
-  vi: "Ảnh quá lớn, vui lòng chọn ảnh tối đa 15MB.",
-  en: "The image is too large, please pick one up to 15MB.",
-};
-
-/**
- * File picker for the Images tab: accepts several images at once, validates each one,
- * uploads them to the server and hands back their /uploads/... URLs (in selection order),
- * so the site configuration stores links instead of embedded images.
- */
-function ImageUploadButton({
-  label,
-  category,
-  onUploaded,
-}: {
-  label: Localized;
-  /** Upload group the images are stored in. */
-  category: SiteImageCategory;
-  onUploaded: (urls: string[]) => void;
-}) {
-  const { t, tr } = useI18n();
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-
-  const uploadOne = async (file: File): Promise<string | null> => {
-    if (!UPLOAD_IMAGE_TYPES.includes(file.type)) {
-      toast.error(`${file.name}: ${t("settings.brand.uploadInvalid")}`);
-      return null;
-    }
-    if (file.size > UPLOAD_IMAGE_MAX_BYTES) {
-      toast.error(`${file.name}: ${tr(uploadTooLarge)}`);
-      return null;
-    }
-    try {
-      return await uploadSiteImage(file, category);
-    } catch (error) {
-      toast.error(
-        `${file.name}: ${
-          error instanceof ApiError && (error.code === "FILE_TOO_LARGE" || error.status === 413)
-            ? tr(uploadTooLarge)
-            : error instanceof Error
-              ? error.message
-              : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." })
-        }`,
-      );
-      return null;
-    }
-  };
-
-  const onFiles = async (files: File[]) => {
-    setProgress({ done: 0, total: files.length });
-    const urls: string[] = [];
-    for (const file of files) {
-      const url = await uploadOne(file);
-      if (url) urls.push(url);
-      setProgress((current) => (current ? { ...current, done: current.done + 1 } : current));
-    }
-    setProgress(null);
-    if (urls.length > 0) onUploaded(urls);
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <label
-        className={cn(
-          // `relative` keeps the sr-only (absolute) file input inside the tab's scroll area;
-          // without it the input escapes to <body> and adds a page-level scrollbar.
-          "relative inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring",
-          progress && "pointer-events-none opacity-60",
-        )}
-      >
-        {progress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        {progress
-          ? tr({
-              vi: `Đang tải ${progress.done}/${progress.total}…`,
-              en: `Uploading ${progress.done}/${progress.total}…`,
-            })
-          : tr(label)}
-        <input
-          type="file"
-          multiple
-          accept={UPLOAD_IMAGE_TYPES.join(",")}
-          className="sr-only"
-          disabled={!!progress}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            if (files.length > 0) void onFiles(files);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      <span className="text-xs text-muted-foreground">
-        {tr({
-          vi: "Chọn được nhiều ảnh. PNG, JPG, WebP hoặc SVG, tối đa 15MB mỗi ảnh.",
-          en: "You can pick several images. PNG, JPG, WebP or SVG, up to 15MB each.",
-        })}
-      </span>
-    </div>
-  );
-}
-
-/** One image tile in the Images tab: selectable, with an optional remove button. */
-function LibraryTile({
-  src,
-  label,
-  selected,
-  onSelect,
-  onRemove,
-  removeLabel,
-  fit = "cover",
-}: {
-  src: string;
-  label: string;
-  selected: boolean;
-  onSelect?: () => void;
-  onRemove?: () => void;
-  removeLabel?: string;
-  fit?: "cover" | "contain";
-}) {
-  return (
-    <div
-      className={cn(
-        "group relative overflow-hidden rounded-lg border-2 text-left transition-colors",
-        selected ? "border-accent" : "border-border hover:border-primary/40",
-      )}
-    >
-      <button type="button" onClick={onSelect} disabled={!onSelect} className="block w-full text-left">
-        <img
-          src={src}
-          alt={label}
-          loading="lazy"
-          className={cn(
-            "h-20 w-full",
-            fit === "contain" ? "bg-white object-contain p-2" : "bg-surface object-cover",
-          )}
-        />
-        <span className="block truncate px-2 py-1.5 text-xs text-muted-foreground">{label}</span>
-      </button>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={removeLabel}
-          title={removeLabel}
-          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Uploaded-image library of one Images tab picker (its own upload group). */
 type UploadLibrary = {
   category: SiteImageCategory;
@@ -540,7 +385,7 @@ function ImagePicker({
         <div className="mt-3">
           <ImageUploadButton
             label={{ vi: "Tải ảnh lên", en: "Upload images" }}
-            category={uploads.category}
+            upload={(file) => uploadSiteImage(file, uploads.category)}
             onUploaded={(urls) => {
               uploads.onUploaded(urls);
               if (urls[0]) onChange(urls[0]);
@@ -1552,7 +1397,7 @@ function AboutPanel({
                 </p>
                 <ImageUploadButton
                   label={{ vi: "Tải nhiều ảnh vào thư viện", en: "Upload photos to the gallery" }}
-                  category="gallery"
+                  upload={(file) => uploadSiteImage(file, "gallery")}
                   onUploaded={(urls) => {
                     galleryUploads.onUploaded(urls);
                     set("gallery", {
@@ -2745,7 +2590,7 @@ function AdminSettings() {
                 <div className="mt-4">
                   <ImageUploadButton
                     label={{ vi: "Tải ảnh lên băng ảnh", en: "Upload slideshow images" }}
-                    category="hero"
+                    upload={(file) => uploadSiteImage(file, "hero")}
                     onUploaded={(urls) => {
                       heroUploads.onUploaded(urls);
                       addHeroImages(urls);

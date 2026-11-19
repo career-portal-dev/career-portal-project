@@ -13,15 +13,6 @@ export const UPLOAD_DIR = process.env.UPLOAD_DIR
 // Đảm bảo thư mục tồn tại trước khi multer ghi file.
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `news-${unique}${ext}`);
-  },
-});
-
 const cvStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
@@ -70,16 +61,28 @@ export const uploadSiteImage = multer({
   },
 });
 
-/** Dung lượng tối đa của ảnh bìa tin tức (khớp giới hạn ở frontend). */
-export const COVER_MAX_BYTES = 5 * 1024 * 1024;
+/** Ảnh bìa tin tức: cùng giới hạn và định dạng với ảnh Cấu hình giao diện (khớp frontend). */
+export const COVER_MAX_BYTES = SITE_IMAGE_MAX_BYTES;
 
-/** Chỉ nhận file ảnh, tối đa 5MB. */
+/**
+ * Uploaded news cover files: news-<time>-<random>.<ext>. Older uploads kept the extension of
+ * the original file name, so any short extension is accepted when listing or deleting.
+ */
+export const NEWS_IMAGE_NAME = /^news-\d+-\d+\.[a-z0-9]{2,5}$/;
+
+/** PNG, JPG, WebP or SVG, tối đa 15MB; đuôi file lấy theo định dạng thật. */
 export const uploadCover = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `news-${unique}${SITE_IMAGE_EXTENSIONS[file.mimetype] ?? ".img"}`);
+    },
+  }),
   limits: { fileSize: COVER_MAX_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) {
-      cb(new Error("Only image files are allowed"));
+    if (!SITE_IMAGE_EXTENSIONS[file.mimetype]) {
+      cb(new Error("Only PNG, JPG, WebP or SVG images are allowed"));
       return;
     }
     cb(null, true);
