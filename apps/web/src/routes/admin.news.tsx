@@ -728,6 +728,8 @@ function AdminNewsPage() {
                         />
                       </button>
                     ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
                     <Button
                       type="button"
                       variant="outline"
