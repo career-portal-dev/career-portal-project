@@ -42,12 +42,22 @@ const SITE_IMAGE_EXTENSIONS: Record<string, string> = {
   "image/svg+xml": ".svg",
 };
 
+/** Upload groups of the Images tab; each picker only lists its own group. */
+export const SITE_IMAGE_CATEGORIES = ["hero", "culture", "logo"] as const;
+export type SiteImageCategory = (typeof SITE_IMAGE_CATEGORIES)[number];
+
+export function parseSiteImageCategory(value: unknown): SiteImageCategory | null {
+  return SITE_IMAGE_CATEGORIES.find((category) => category === value) ?? null;
+}
+
 export const uploadSiteImage = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
+    // Name: site-<category>-<time>-<random>.<ext>; the route validates ?category= first.
+    filename: (req, file, cb) => {
+      const category = parseSiteImageCategory(req.query.category) ?? "hero";
       const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `site-${unique}${SITE_IMAGE_EXTENSIONS[file.mimetype] ?? ".img"}`);
+      cb(null, `site-${category}-${unique}${SITE_IMAGE_EXTENSIONS[file.mimetype] ?? ".img"}`);
     },
   }),
   limits: { fileSize: SITE_IMAGE_MAX_BYTES },

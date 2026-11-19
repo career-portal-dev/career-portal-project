@@ -10,11 +10,27 @@ import path from "node:path";
 import multer from "multer";
 import { adminSiteConfigController } from "../controllers/admin-site-config.controller";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { SITE_IMAGE_MAX_BYTES, UPLOAD_DIR, uploadSiteImage } from "../middleware/upload";
+import {
+  SITE_IMAGE_MAX_BYTES,
+  UPLOAD_DIR,
+  parseSiteImageCategory,
+  uploadSiteImage,
+  type SiteImageCategory,
+} from "../middleware/upload";
 import { adminSiteConfigService } from "../services/admin-site-config.service";
 
-/** File names created by `uploadSiteImage` (site-<time>-<random>.<ext>). */
-const SITE_IMAGE_NAME = /^site-\d+-\d+\.(png|jpg|webp|svg)$/;
+/**
+ * File names created by `uploadSiteImage`: site-<category>-<time>-<random>.<ext>, or the
+ * older site-<time>-<random>.<ext> (uploaded before images were grouped).
+ */
+const SITE_IMAGE_NAME = /^site-(?:(hero|culture|logo)-)?\d+-\d+\.(png|jpg|webp|svg)$/;
+
+/** Group of an older, ungrouped upload: where the saved configuration uses it (default hero). */
+function legacyCategory(url: string, images: Record<string, unknown>): SiteImageCategory {
+  if (images.logo === url) return "logo";
+  if (images.culture === url) return "culture";
+  return "hero";
+}
 
 export const adminSiteConfigRoutes: RouterType = Router();
 adminSiteConfigRoutes.use(requireAuth, requireRole("ADMIN"));
@@ -27,6 +43,14 @@ adminSiteConfigRoutes.post("/reset", adminSiteConfigController.reset);
 adminSiteConfigRoutes.post(
   "/upload",
   (req: Request, res: Response, next: NextFunction) => {
+    if (!parseSiteImageCategory(req.query.category)) {
+      res.status(400).json({
+        success: false,
+        code: "INVALID_CATEGORY",
+        error: "category must be hero, culture or logo",
+      });
+      return;
+    }
     uploadSiteImage.single("image")(req, res, (error: unknown) => {
       if (!error) {
         next();
@@ -56,16 +80,20 @@ adminSiteConfigRoutes.post(
   },
 );
 
-// GET /api/admin/site-config/uploads — uploaded site images, newest first.
+// GET /api/admin/site-config/uploads — uploaded site images with their group, newest first.
 adminSiteConfigRoutes.get("/uploads", async (_req: Request, res: Response) => {
   try {
     const names = (await fs.readdir(UPLOAD_DIR)).filter((name) => SITE_IMAGE_NAME.test(name));
+    const savedImages = (await adminSiteConfigService.get()).images;
     const items = await Promise.all(
       names.map(async (name) => {
         const stat = await fs.stat(path.join(UPLOAD_DIR, name));
+        const url = `/uploads/${name}`;
+        const grouped = parseSiteImageCategory(SITE_IMAGE_NAME.exec(name)?.[1]);
         return {
           name,
-          url: `/uploads/${name}`,
+          url,
+          category: grouped ?? legacyCategory(url, savedImages),
           size: stat.size,
           uploadedAt: stat.mtime.toISOString(),
         };

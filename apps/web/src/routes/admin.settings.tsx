@@ -20,6 +20,7 @@ import {
   deleteSiteImageUpload,
   fetchSiteImageUploads,
   uploadSiteImage,
+  type SiteImageCategory,
   type UploadedSiteImage,
 } from "@/services/site-config.api";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
@@ -315,9 +316,12 @@ const uploadTooLarge = {
  */
 function ImageUploadButton({
   label,
+  category,
   onUploaded,
 }: {
   label: Localized;
+  /** Upload group the images are stored in. */
+  category: SiteImageCategory;
   onUploaded: (urls: string[]) => void;
 }) {
   const { t, tr } = useI18n();
@@ -333,7 +337,7 @@ function ImageUploadButton({
       return null;
     }
     try {
-      return await uploadSiteImage(file);
+      return await uploadSiteImage(file, category);
     } catch (error) {
       toast.error(
         `${file.name}: ${
@@ -450,8 +454,9 @@ function LibraryTile({
   );
 }
 
-/** Uploaded-image library shared by the Images tab pickers. */
+/** Uploaded-image library of one Images tab picker (its own upload group). */
 type UploadLibrary = {
+  category: SiteImageCategory;
   items: UploadedSiteImage[];
   /** Ids of hidden built-in sample images. */
   hiddenIds: string[];
@@ -527,6 +532,7 @@ function ImagePicker({
         <div className="mt-3">
           <ImageUploadButton
             label={{ vi: "Tải ảnh lên", en: "Upload images" }}
+            category={uploads.category}
             onUploaded={(urls) => {
               uploads.onUploaded(urls);
               if (urls[0]) onChange(urls[0]);
@@ -1873,14 +1879,17 @@ function AdminSettings() {
     en: "This image is in use. Pick another image before deleting it.",
   };
 
-  const uploadLibrary: UploadLibrary = {
-    items: siteUploads,
+  /** Library of one picker: only the images uploaded into its own group. */
+  const uploadLibraryFor = (category: SiteImageCategory): UploadLibrary => ({
+    category,
+    items: siteUploads.filter((item) => item.category === category),
     hiddenIds: hiddenMedia,
     onUploaded: (urls) =>
       setSiteUploads((current) => [
         ...urls.map((url) => ({
           name: url.split("/").pop() ?? url,
           url,
+          category,
           size: 0,
           uploadedAt: new Date().toISOString(),
         })),
@@ -1900,7 +1909,10 @@ function AdminSettings() {
       }
       update({ images: { ...draft.images, hiddenMedia: [...hiddenMedia, item.id] } });
     },
-  };
+  });
+  const heroUploads = uploadLibraryFor("hero");
+  const cultureUploads = uploadLibraryFor("culture");
+  const logoUploads = uploadLibraryFor("logo");
 
   const confirmDeleteUpload = async () => {
     if (!pendingDelete || isDeleting) return;
@@ -2640,8 +2652,8 @@ function AdminSettings() {
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {tr({
-                  vi: "Ảnh tải lên được dùng chung cho mọi ô. Bấm biểu tượng thùng rác để xóa ảnh đã tải lên hoặc ẩn ảnh mẫu (ẩn ảnh mẫu được lưu khi bấm Lưu).",
-                  en: "Uploaded images are shared by every picker. Use the bin icon to delete an uploaded image or hide a sample image (hiding is saved when you click Save).",
+                  vi: "Mỗi mục có ảnh tải lên riêng (băng ảnh dùng chung ảnh với Ảnh bìa trang chủ). Bấm biểu tượng thùng rác để xóa ảnh đã tải lên hoặc ẩn ảnh mẫu (ẩn ảnh mẫu được lưu khi bấm Lưu).",
+                  en: "Each picker keeps its own uploads (the slideshow shares the home cover images). Use the bin icon to delete an uploaded image or hide a sample image (hiding is saved when you click Save).",
                 })}
               </p>
               <div className="mt-4 grid gap-6 lg:grid-cols-3">
@@ -2651,7 +2663,7 @@ function AdminSettings() {
                   value={draft.images.hero}
                   onChange={(hero) => update({ images: { ...draft.images, hero } })}
                   customLabel={uploadedLabel}
-                  uploads={uploadLibrary}
+                  uploads={heroUploads}
                 />
                 <ImagePicker
                   label={t("settings.images.culture")}
@@ -2659,7 +2671,7 @@ function AdminSettings() {
                   value={draft.images.culture}
                   onChange={(culture) => update({ images: { ...draft.images, culture } })}
                   customLabel={uploadedLabel}
-                  uploads={uploadLibrary}
+                  uploads={cultureUploads}
                 />
                 <ImagePicker
                   label={t("settings.images.logo")}
@@ -2667,7 +2679,7 @@ function AdminSettings() {
                   value={draft.images.logo}
                   onChange={(logo) => update({ images: { ...draft.images, logo } })}
                   customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
-                  uploads={uploadLibrary}
+                  uploads={logoUploads}
                   fit="contain"
                 />
               </div>
@@ -2735,8 +2747,9 @@ function AdminSettings() {
                 <div className="mt-4">
                   <ImageUploadButton
                     label={{ vi: "Tải ảnh lên băng ảnh", en: "Upload slideshow images" }}
+                    category="hero"
                     onUploaded={(urls) => {
-                      uploadLibrary.onUploaded(urls);
+                      heroUploads.onUploaded(urls);
                       addHeroImages(urls);
                     }}
                   />
@@ -2747,7 +2760,7 @@ function AdminSettings() {
                     const order = (url: string) =>
                       list.includes(url) ? ` · ${String(list.indexOf(url) + 1)}` : "";
                     const knownUrls = new Set([
-                      ...siteUploads.map((item) => item.url),
+                      ...heroUploads.items.map((item) => item.url),
                       ...heroLibrary.map((item) => item.url),
                     ]);
                     return (
@@ -2763,14 +2776,14 @@ function AdminSettings() {
                               onSelect={() => toggleHeroImage(url)}
                             />
                           ))}
-                        {siteUploads.map((item) => (
+                        {heroUploads.items.map((item) => (
                           <LibraryTile
                             key={item.name}
                             src={item.url}
                             label={`${tr(uploadedLabel)}${order(item.url)}`}
                             selected={list.includes(item.url)}
                             onSelect={() => toggleHeroImage(item.url)}
-                            onRemove={() => uploadLibrary.onDeleteUpload(item)}
+                            onRemove={() => heroUploads.onDeleteUpload(item)}
                             removeLabel={tr({ vi: "Xóa ảnh", en: "Delete image" })}
                           />
                         ))}
@@ -2783,7 +2796,7 @@ function AdminSettings() {
                               label={`${tr(item.label)}${order(item.url)}`}
                               selected={list.includes(item.url)}
                               onSelect={() => toggleHeroImage(item.url)}
-                              onRemove={() => uploadLibrary.onHideSample(item)}
+                              onRemove={() => heroUploads.onHideSample(item)}
                               removeLabel={tr({ vi: "Ẩn ảnh mẫu", en: "Hide sample image" })}
                             />
                           ))}

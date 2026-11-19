@@ -20,11 +20,14 @@ export function saveAdminSiteConfig(config: SiteConfig): Promise<SiteConfig> {
   return request<SiteConfig>(ADMIN_BASE, { method: "PUT", body: JSON.stringify(config) });
 }
 
-/** Uploads a site image (logo, hero, culture, slideshow) and returns its /uploads/... URL. */
-export async function uploadSiteImage(file: File): Promise<string> {
+/** Upload group of the Images tab: each picker lists only its own group. */
+export type SiteImageCategory = "hero" | "culture" | "logo";
+
+/** Uploads a site image into a group and returns its /uploads/... URL. */
+export async function uploadSiteImage(file: File, category: SiteImageCategory): Promise<string> {
   const form = new FormData();
   form.append("image", file);
-  const result = await request<{ url: string }>(`${ADMIN_BASE}/upload`, {
+  const result = await request<{ url: string }>(`${ADMIN_BASE}/upload?category=${category}`, {
     method: "POST",
     body: form,
   });
@@ -34,6 +37,7 @@ export async function uploadSiteImage(file: File): Promise<string> {
 export type UploadedSiteImage = {
   name: string;
   url: string;
+  category: SiteImageCategory;
   size: number;
   uploadedAt: string;
 };
