@@ -862,6 +862,8 @@ function buildPaletteCss(config: SiteConfig): string {
     readableOn(config.primary) === "#ffffff" ? oklch(0.985, 0.004, hue) : oklch(0.2, 0.02, hue);
   const accentFg =
     readableOn(config.accent) === "#ffffff" ? oklch(0.985, 0.004, a.h) : oklch(0.24, 0.03, a.h);
+  /** True when the primary colour is light enough to need dark text on it. */
+  const sidebarOnLight = readableOn(config.primary) !== "#ffffff";
 
   const light = [
     `--background: ${oklch(tone.l, tone.c, hue)}`,
@@ -885,19 +887,23 @@ function buildPaletteCss(config: SiteConfig): string {
     `--chart-1: ${oklch(p.l, p.c, hue)}`,
     `--chart-2: ${oklch(a.l, a.c, a.h)}`,
     `--chart-3: ${oklch(Math.min(primaryL + 0.18, 0.72), p.c * 0.8, hue)}`,
-    `--sidebar: ${oklch(Math.min(primaryL, 0.3), p.c, hue)}`,
-    `--sidebar-foreground: ${oklch(0.94, 0.008, hue)}`,
+    // Admin menu uses the primary colour as entered; text, hover/active fill and borders
+    // flip between light and dark so they stay readable on light or dark primaries.
+    `--sidebar: ${oklch(p.l, p.c, hue)}`,
+    `--sidebar-foreground: ${sidebarOnLight ? oklch(0.22, Math.min(p.c, 0.05), hue) : oklch(0.97, 0.006, hue)}`,
     `--sidebar-primary: ${oklch(a.l, a.c, a.h)}`,
     `--sidebar-primary-foreground: ${accentFg}`,
-    `--sidebar-accent: ${oklch(Math.min(primaryL + 0.07, 0.38), p.c, hue)}`,
-    `--sidebar-accent-foreground: ${oklch(0.97, 0.006, hue)}`,
-    `--sidebar-border: oklch(1 0 0 / 12%)`,
+    `--sidebar-accent: ${oklch(sidebarOnLight ? p.l - 0.07 : Math.min(p.l + 0.07, 0.92), p.c, hue)}`,
+    `--sidebar-accent-foreground: ${sidebarOnLight ? oklch(0.18, Math.min(p.c, 0.05), hue) : oklch(0.99, 0.004, hue)}`,
+    `--sidebar-border: ${sidebarOnLight ? "oklch(0 0 0 / 12%)" : "oklch(1 0 0 / 12%)"}`,
     `--sidebar-ring: ${oklch(a.l, a.c, a.h)}`,
     `--elevation-soft: 0 1px 2px ${oklch(0.24, tint, hue, "6%")}, 0 1px 3px ${oklch(0.24, tint, hue, "4%")}`,
     `--elevation-lift: 0 2px 4px ${oklch(0.24, tint, hue, "5%")}, 0 10px 24px -8px ${oklch(0.24, tint, hue, "14%")}`,
     `--elevation-deep: 0 24px 60px -24px ${oklch(0.24, tint, hue, "34%")}`,
-    `--hero-foreground: ${oklch(0.985, 0.004, hue)}`,
-    `--gradient-hero: linear-gradient(135deg, ${oklch(Math.min(primaryL, 0.3), p.c, hue)} 0%, ${oklch(Math.min(primaryL + 0.08, 0.42), p.c * 0.95, hue - 6)} 55%, ${oklch(Math.min(primaryL + 0.16, 0.5), p.c * 0.85, hue - 14)} 100%)`,
+    // Home hero band: starts at the primary colour as entered and drifts slightly lighter
+    // (dark primary) or darker (light primary) so the text colour keeps its contrast.
+    `--hero-foreground: ${sidebarOnLight ? oklch(0.2, Math.min(p.c, 0.05), hue) : oklch(0.985, 0.004, hue)}`,
+    `--gradient-hero: linear-gradient(135deg, ${oklch(p.l, p.c, hue)} 0%, ${oklch(sidebarOnLight ? p.l - 0.04 : Math.min(p.l + 0.05, 0.62), p.c * 0.95, hue - 6)} 55%, ${oklch(sidebarOnLight ? p.l - 0.08 : Math.min(p.l + 0.1, 0.66), p.c * 0.88, hue - 14)} 100%)`,
   ].join(";\n  ");
 
   const darkPrimaryL = 0.9;
