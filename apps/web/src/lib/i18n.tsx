@@ -433,18 +433,9 @@ const dict = {
   "settings.brand.name": { vi: "Tên công ty", en: "Company name" },
   "settings.brand.tagline": { vi: "Slogan ngắn", en: "Short tagline" },
   "settings.brand.logo": { vi: "Logo công ty", en: "Company logo" },
-  "settings.brand.upload": { vi: "Tải logo lên", en: "Upload logo" },
-  "settings.brand.uploadHint": {
-    vi: "PNG, SVG hoặc JPG, tối đa 1MB.",
-    en: "PNG, SVG or JPG, up to 1MB.",
-  },
-  "settings.brand.uploadTooLarge": {
-    vi: "Tệp quá lớn, vui lòng chọn ảnh dưới 1MB.",
-    en: "File is too large, please pick an image under 1MB.",
-  },
   "settings.brand.uploadInvalid": {
-    vi: "Định dạng không hỗ trợ. Dùng PNG, SVG hoặc JPG.",
-    en: "Unsupported format. Use PNG, SVG or JPG.",
+    vi: "Định dạng không hỗ trợ. Dùng PNG, JPG, WebP hoặc SVG.",
+    en: "Unsupported format. Use PNG, JPG, WebP or SVG.",
   },
   "settings.brand.removeLogo": { vi: "Bỏ logo, dùng chữ cái đầu", en: "Remove logo, use initials" },
   "settings.brand.preview": { vi: "Xem trước", en: "Preview" },

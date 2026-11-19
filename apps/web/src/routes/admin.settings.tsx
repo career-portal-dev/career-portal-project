@@ -12,6 +12,7 @@ import {
   Save,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -2003,24 +2004,6 @@ function AdminSettings() {
     }
   };
 
-  const onLogoFile = (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
-    if (!allowed.includes(file.type)) {
-      toast.error(t("settings.brand.uploadInvalid"));
-      return;
-    }
-    if (file.size > 1024 * 1024) {
-      toast.error(t("settings.brand.uploadTooLarge"));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = typeof reader.result === "string" ? reader.result : "";
-      if (url) update({ images: { ...draft.images, logo: url } });
-    };
-    reader.readAsDataURL(file);
-  };
-
   return (
     <AdminLayout
       title={t("settings.title")}
@@ -2080,35 +2063,21 @@ function AdminSettings() {
                       value={draft.images.logo}
                       onChange={(logo) => update({ images: { ...draft.images, logo } })}
                       customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
+                      uploads={logoUploads}
+                      fit="contain"
                     />
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="relative inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40">
-                        <Upload className="h-4 w-4" />
-                        {t("settings.brand.upload")}
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                          className="sr-only"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) onLogoFile(file);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
+                    {draft.images.logo && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
+                        className="justify-self-start"
                         onClick={() => update({ images: { ...draft.images, logo: "" } })}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                         {t("settings.brand.removeLogo")}
                       </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {t("settings.brand.uploadHint")}
-                      </span>
-                    </div>
+                    )}
                   </div>
 
                   <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
