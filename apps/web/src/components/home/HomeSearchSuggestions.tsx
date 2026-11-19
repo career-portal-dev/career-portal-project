@@ -198,8 +198,11 @@ export function HomeSearchSuggestions({
             autoComplete="off"
             className={cn(
               "border-0 bg-transparent px-0 shadow-none focus-visible:ring-0",
-              tone === "dark" &&
-                "text-primary-foreground placeholder:text-primary-foreground/60",
+              // Set the text colour explicitly: inherited colour from a brand-toned section
+              // would be light-on-white on the light (card) search box.
+              tone === "dark"
+                ? "text-primary-foreground placeholder:text-primary-foreground/60"
+                : "text-card-foreground placeholder:text-muted-foreground",
             )}
           />
         </div>

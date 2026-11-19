@@ -138,7 +138,7 @@ export function HomeSearch({
         "flex w-full flex-col gap-2 rounded-2xl border p-2 sm:flex-row sm:items-center",
         tone === "dark"
           ? "border-primary-foreground/15 bg-primary-foreground/10 backdrop-blur-md"
-          : "border-border bg-card shadow-lift",
+          : "border-border bg-card text-card-foreground shadow-lift",
         className,
       )}
     >
