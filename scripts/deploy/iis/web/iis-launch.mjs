@@ -36,7 +36,15 @@ function originOf(req) {
   return { proto: proto === "https" ? "https" : "http", host: String(req.headers.host || "localhost") };
 }
 
-/** Sends a request to this IIS site over loopback, keeping the public Host name (bindings). */
+/**
+ * Sends a request to this IIS site over loopback, keeping the public Host name (bindings).
+ *
+ * TLS: the hop goes to 127.0.0.1, i.e. this same server, so the site certificate is not
+ * verified for it. Node does not read the Windows certificate store, so a certificate whose
+ * chain Windows trusts (or that is served without its intermediate) fails here with
+ * "unable to get local issuer certificate" — which broke every /uploads/* image (502) and
+ * the SSR API calls on HTTPS sites.
+ */
 function requestSite(origin, method, pathAndQuery, headers) {
   const secure = origin.proto === "https";
   const hostname = origin.host.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
@@ -48,7 +56,9 @@ function requestSite(origin, method, pathAndQuery, headers) {
     method,
     path: pathAndQuery,
     headers: { ...headers, host: origin.host },
-    ...(secure ? { servername: /^[\d.]+$/.test(hostname) ? undefined : hostname } : {}),
+    ...(secure
+      ? { servername: /^[\d.]+$/.test(hostname) ? undefined : hostname, rejectUnauthorized: false }
+      : {}),
   });
 }
 
