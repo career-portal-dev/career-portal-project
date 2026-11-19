@@ -16,7 +16,12 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/request";
-import { uploadSiteImage } from "@/services/site-config.api";
+import {
+  deleteSiteImageUpload,
+  fetchSiteImageUploads,
+  uploadSiteImage,
+  type UploadedSiteImage,
+} from "@/services/site-config.api";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -304,42 +309,55 @@ const uploadTooLarge = {
 };
 
 /**
- * File picker for the Images tab: validates the image, uploads it to the server and hands
- * back its /uploads/... URL, so the site configuration stores a link instead of the image.
+ * File picker for the Images tab: accepts several images at once, validates each one,
+ * uploads them to the server and hands back their /uploads/... URLs (in selection order),
+ * so the site configuration stores links instead of embedded images.
  */
 function ImageUploadButton({
   label,
-  onUpload,
+  onUploaded,
 }: {
   label: Localized;
-  onUpload: (url: string) => void;
+  onUploaded: (urls: string[]) => void;
 }) {
   const { t, tr } = useI18n();
-  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const onFile = async (file: File) => {
+  const uploadOne = async (file: File): Promise<string | null> => {
     if (!UPLOAD_IMAGE_TYPES.includes(file.type)) {
-      toast.error(t("settings.brand.uploadInvalid"));
-      return;
+      toast.error(`${file.name}: ${t("settings.brand.uploadInvalid")}`);
+      return null;
     }
     if (file.size > UPLOAD_IMAGE_MAX_BYTES) {
-      toast.error(tr(uploadTooLarge));
-      return;
+      toast.error(`${file.name}: ${tr(uploadTooLarge)}`);
+      return null;
     }
-    setIsUploading(true);
     try {
-      onUpload(await uploadSiteImage(file));
+      return await uploadSiteImage(file);
     } catch (error) {
       toast.error(
-        error instanceof ApiError && (error.code === "FILE_TOO_LARGE" || error.status === 413)
-          ? tr(uploadTooLarge)
-          : error instanceof Error
-            ? error.message
-            : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." }),
+        `${file.name}: ${
+          error instanceof ApiError && (error.code === "FILE_TOO_LARGE" || error.status === 413)
+            ? tr(uploadTooLarge)
+            : error instanceof Error
+              ? error.message
+              : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." })
+        }`,
       );
-    } finally {
-      setIsUploading(false);
+      return null;
     }
+  };
+
+  const onFiles = async (files: File[]) => {
+    setProgress({ done: 0, total: files.length });
+    const urls: string[] = [];
+    for (const file of files) {
+      const url = await uploadOne(file);
+      if (url) urls.push(url);
+      setProgress((current) => (current ? { ...current, done: current.done + 1 } : current));
+    }
+    setProgress(null);
+    if (urls.length > 0) onUploaded(urls);
   };
 
   return (
@@ -347,29 +365,102 @@ function ImageUploadButton({
       <label
         className={cn(
           "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring",
-          isUploading && "pointer-events-none opacity-60",
+          progress && "pointer-events-none opacity-60",
         )}
       >
-        {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        {isUploading ? tr({ vi: "Đang tải…", en: "Uploading…" }) : tr(label)}
+        {progress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {progress
+          ? tr({
+              vi: `Đang tải ${progress.done}/${progress.total}…`,
+              en: `Uploading ${progress.done}/${progress.total}…`,
+            })
+          : tr(label)}
         <input
           type="file"
+          multiple
           accept={UPLOAD_IMAGE_TYPES.join(",")}
           className="sr-only"
-          disabled={isUploading}
+          disabled={!!progress}
           onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onFile(file);
+            const files = Array.from(e.target.files ?? []);
+            if (files.length > 0) void onFiles(files);
             e.target.value = "";
           }}
         />
       </label>
       <span className="text-xs text-muted-foreground">
-        {tr({ vi: "PNG, JPG, WebP hoặc SVG, tối đa 15MB.", en: "PNG, JPG, WebP or SVG, up to 15MB." })}
+        {tr({
+          vi: "Chọn được nhiều ảnh. PNG, JPG, WebP hoặc SVG, tối đa 15MB mỗi ảnh.",
+          en: "You can pick several images. PNG, JPG, WebP or SVG, up to 15MB each.",
+        })}
       </span>
     </div>
   );
 }
+
+/** One image tile in the Images tab: selectable, with an optional remove button. */
+function LibraryTile({
+  src,
+  label,
+  selected,
+  onSelect,
+  onRemove,
+  removeLabel,
+  fit = "cover",
+}: {
+  src: string;
+  label: string;
+  selected: boolean;
+  onSelect?: () => void;
+  onRemove?: () => void;
+  removeLabel?: string;
+  fit?: "cover" | "contain";
+}) {
+  return (
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-lg border-2 text-left transition-colors",
+        selected ? "border-accent" : "border-border hover:border-primary/40",
+      )}
+    >
+      <button type="button" onClick={onSelect} disabled={!onSelect} className="block w-full text-left">
+        <img
+          src={src}
+          alt={label}
+          loading="lazy"
+          className={cn(
+            "h-20 w-full",
+            fit === "contain" ? "bg-white object-contain p-2" : "bg-surface object-cover",
+          )}
+        />
+        <span className="block truncate px-2 py-1.5 text-xs text-muted-foreground">{label}</span>
+      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={removeLabel}
+          title={removeLabel}
+          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Uploaded-image library shared by the Images tab pickers. */
+type UploadLibrary = {
+  items: UploadedSiteImage[];
+  /** Ids of hidden built-in sample images. */
+  hiddenIds: string[];
+  onUploaded: (urls: string[]) => void;
+  onDeleteUpload: (item: UploadedSiteImage) => void;
+  onHideSample: (item: MediaItem) => void;
+};
+
+const uploadedLabel: Localized = { vi: "Ảnh đã tải lên", en: "Uploaded image" };
 
 function ImagePicker({
   label,
@@ -377,64 +468,69 @@ function ImagePicker({
   value,
   onChange,
   customLabel,
-  uploadable,
+  uploads,
+  fit = "cover",
 }: {
   label: string;
   library: MediaItem[];
   value: string;
   onChange: (url: string) => void;
-  /** When set, an image that is not in the library is shown as a selected tile. */
+  /** When set, an image that is in neither library is shown as a selected tile. */
   customLabel?: Localized;
-  /** Show an upload button under the library. */
-  uploadable?: boolean;
+  /** Images tab: shared uploaded-image library with upload and delete actions. */
+  uploads?: UploadLibrary;
+  fit?: "cover" | "contain";
 }) {
   const { t, tr } = useI18n();
   const custom = value.trim();
-  const showCustom = !!customLabel && !!custom && !library.some((item) => item.url === value);
+  const uploaded = uploads?.items ?? [];
+  const samples = uploads ? library.filter((item) => !uploads.hiddenIds.includes(item.id)) : library;
+  const showCustom =
+    !!customLabel &&
+    !!custom &&
+    !library.some((item) => item.url === value) &&
+    !uploaded.some((item) => item.url === value);
 
   return (
     <div>
       <Label className="text-sm font-medium">{label}</Label>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {showCustom && (
-          <div className="overflow-hidden rounded-lg border-2 border-accent text-left">
-            <img
-              src={custom}
-              alt={tr(customLabel)}
-              className="h-20 w-full bg-white object-contain p-2"
-            />
-            <span className="block truncate px-2 py-1.5 text-xs text-muted-foreground">
-              {tr(customLabel)}
-            </span>
-          </div>
+        {showCustom && customLabel && (
+          <LibraryTile src={custom} label={tr(customLabel)} selected fit="contain" />
         )}
-        {library.map((item) => (
-          <button
+        {uploaded.map((item) => (
+          <LibraryTile
+            key={item.name}
+            src={item.url}
+            label={tr(uploadedLabel)}
+            selected={value === item.url}
+            onSelect={() => onChange(item.url)}
+            onRemove={uploads ? () => uploads.onDeleteUpload(item) : undefined}
+            removeLabel={tr({ vi: "Xóa ảnh", en: "Delete image" })}
+            fit={fit}
+          />
+        ))}
+        {samples.map((item) => (
+          <LibraryTile
             key={item.id}
-            type="button"
-            onClick={() => onChange(item.url)}
-            className={cn(
-              "group overflow-hidden rounded-lg border-2 text-left transition-colors",
-              value === item.url ? "border-accent" : "border-border hover:border-primary/40",
-            )}
-          >
-            <img
-              src={item.url}
-              alt={tr(item.label)}
-              loading="lazy"
-              className="h-20 w-full bg-surface object-contain sm:object-cover"
-            />
-            <span className="block truncate px-2 py-1.5 text-xs text-muted-foreground">
-              {tr(item.label)}
-            </span>
-          </button>
+            src={item.url}
+            label={tr(item.label)}
+            selected={value === item.url}
+            onSelect={() => onChange(item.url)}
+            onRemove={uploads ? () => uploads.onHideSample(item) : undefined}
+            removeLabel={tr({ vi: "Ẩn ảnh mẫu", en: "Hide sample image" })}
+            fit={fit}
+          />
         ))}
       </div>
-      {uploadable && (
+      {uploads && (
         <div className="mt-3">
           <ImageUploadButton
-            label={{ vi: "Tải ảnh lên", en: "Upload image" }}
-            onUpload={onChange}
+            label={{ vi: "Tải ảnh lên", en: "Upload images" }}
+            onUploaded={(urls) => {
+              uploads.onUploaded(urls);
+              if (urls[0]) onChange(urls[0]);
+            }}
           />
         </div>
       )}
@@ -1728,6 +1824,108 @@ function AdminSettings() {
     });
   };
 
+  /** Adds uploaded images to the slideshow (up to 5 in total). */
+  const addHeroImages = (urls: string[]) => {
+    const list = draft.images.heroImages.filter((url) => url.trim());
+    const room = Math.max(0, 5 - list.length);
+    const added = urls.filter((url) => !list.includes(url)).slice(0, room);
+    if (added.length < urls.length) {
+      toast.error(
+        tr({
+          vi: "Băng ảnh tối đa 5 ảnh; ảnh còn lại đã được lưu vào thư viện.",
+          en: "The slideshow holds up to 5 images; the rest were kept in the library.",
+        }),
+      );
+    }
+    if (added.length === 0) return;
+    const next = [...list, ...added];
+    update({ images: { ...draft.images, heroImages: next, hero: next[0] ?? draft.images.hero } });
+  };
+
+  // ---- Images tab: uploaded-image library, deletion and hidden sample images ----
+  const [siteUploads, setSiteUploads] = useState<UploadedSiteImage[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<UploadedSiteImage | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const hiddenMedia = draft.images.hiddenMedia ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSiteImageUploads()
+      .then((items) => {
+        if (!cancelled) setSiteUploads(items);
+      })
+      .catch(() => {
+        /* library unavailable: the pickers still show the sample images */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** True when the draft uses the image (hero, culture, logo or slideshow). */
+  const isImageInUse = (url: string) =>
+    [draft.images.hero, draft.images.culture, draft.images.logo, ...draft.images.heroImages].includes(
+      url,
+    );
+
+  const imageInUseMessage = {
+    vi: "Ảnh đang được sử dụng. Hãy chọn ảnh khác trước khi xóa.",
+    en: "This image is in use. Pick another image before deleting it.",
+  };
+
+  const uploadLibrary: UploadLibrary = {
+    items: siteUploads,
+    hiddenIds: hiddenMedia,
+    onUploaded: (urls) =>
+      setSiteUploads((current) => [
+        ...urls.map((url) => ({
+          name: url.split("/").pop() ?? url,
+          url,
+          size: 0,
+          uploadedAt: new Date().toISOString(),
+        })),
+        ...current,
+      ]),
+    onDeleteUpload: (item) => {
+      if (isImageInUse(item.url)) {
+        toast.error(tr(imageInUseMessage));
+        return;
+      }
+      setPendingDelete(item);
+    },
+    onHideSample: (item) => {
+      if (isImageInUse(item.url)) {
+        toast.error(tr(imageInUseMessage));
+        return;
+      }
+      update({ images: { ...draft.images, hiddenMedia: [...hiddenMedia, item.id] } });
+    },
+  };
+
+  const confirmDeleteUpload = async () => {
+    if (!pendingDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteSiteImageUpload(pendingDelete.name);
+      setSiteUploads((current) => current.filter((item) => item.name !== pendingDelete.name));
+      toast.success(tr({ vi: "Đã xóa ảnh.", en: "Image deleted." }));
+      setPendingDelete(null);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.code === "IMAGE_IN_USE"
+          ? tr({
+              vi: "Ảnh đang được dùng trong cấu hình đã lưu. Hãy chọn ảnh khác, bấm Lưu rồi xóa lại.",
+              en: "The saved configuration still uses this image. Pick another one, save, then delete it.",
+            })
+          : error instanceof Error
+            ? error.message
+            : tr({ vi: "Không xóa được ảnh.", en: "Failed to delete the image." }),
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const onLogoFile = (file: File) => {
     const allowed = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!allowed.includes(file.type)) {
@@ -2423,23 +2621,45 @@ function AdminSettings() {
 
           <TabsContent value="images" className="mt-5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 [scrollbar-width:thin] [scrollbar-color:hsl(var(--muted-foreground)/0.2)_transparent]">
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="font-display text-base font-semibold">{t("settings.images.title")}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-base font-semibold">{t("settings.images.title")}</h2>
+                {hiddenMedia.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0 text-xs"
+                    onClick={() => update({ images: { ...draft.images, hiddenMedia: [] } })}
+                  >
+                    {tr({
+                      vi: `Hiện lại ${hiddenMedia.length} ảnh mẫu đã ẩn`,
+                      en: `Show ${hiddenMedia.length} hidden sample image(s)`,
+                    })}
+                  </Button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {tr({
+                  vi: "Ảnh tải lên được dùng chung cho mọi ô. Bấm biểu tượng thùng rác để xóa ảnh đã tải lên hoặc ẩn ảnh mẫu (ẩn ảnh mẫu được lưu khi bấm Lưu).",
+                  en: "Uploaded images are shared by every picker. Use the bin icon to delete an uploaded image or hide a sample image (hiding is saved when you click Save).",
+                })}
+              </p>
               <div className="mt-4 grid gap-6 lg:grid-cols-3">
                 <ImagePicker
                   label={t("settings.images.hero")}
                   library={heroLibrary}
                   value={draft.images.hero}
                   onChange={(hero) => update({ images: { ...draft.images, hero } })}
-                  customLabel={{ vi: "Ảnh đã tải lên", en: "Uploaded image" }}
-                  uploadable
+                  customLabel={uploadedLabel}
+                  uploads={uploadLibrary}
                 />
                 <ImagePicker
                   label={t("settings.images.culture")}
                   library={cultureLibrary}
                   value={draft.images.culture}
                   onChange={(culture) => update({ images: { ...draft.images, culture } })}
-                  customLabel={{ vi: "Ảnh đã tải lên", en: "Uploaded image" }}
-                  uploadable
+                  customLabel={uploadedLabel}
+                  uploads={uploadLibrary}
                 />
                 <ImagePicker
                   label={t("settings.images.logo")}
@@ -2447,9 +2667,52 @@ function AdminSettings() {
                   value={draft.images.logo}
                   onChange={(logo) => update({ images: { ...draft.images, logo } })}
                   customLabel={{ vi: "Logo đã tải lên", en: "Uploaded logo" }}
-                  uploadable
+                  uploads={uploadLibrary}
+                  fit="contain"
                 />
               </div>
+
+              <AlertDialog
+                open={pendingDelete !== null}
+                onOpenChange={(open) => {
+                  if (!open && !isDeleting) setPendingDelete(null);
+                }}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {tr({ vi: "Xóa ảnh đã tải lên?", en: "Delete uploaded image?" })}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {tr({
+                        vi: "Ảnh sẽ bị xóa vĩnh viễn khỏi máy chủ và không thể khôi phục.",
+                        en: "The image is permanently deleted from the server and cannot be restored.",
+                      })}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {pendingDelete && (
+                    <img
+                      src={pendingDelete.url}
+                      alt=""
+                      className="max-h-40 w-full rounded-md border border-border bg-surface object-contain"
+                    />
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={isDeleting}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void confirmDeleteUpload();
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      {tr({ vi: "Xóa ảnh", en: "Delete image" })}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               <div className="mt-8 border-t border-border pt-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2471,56 +2734,62 @@ function AdminSettings() {
                 </p>
                 <div className="mt-4">
                   <ImageUploadButton
-                    label={{ vi: "Tải ảnh lên băng ảnh", en: "Upload slideshow image" }}
-                    onUpload={(url) => toggleHeroImage(url)}
+                    label={{ vi: "Tải ảnh lên băng ảnh", en: "Upload slideshow images" }}
+                    onUploaded={(urls) => {
+                      uploadLibrary.onUploaded(urls);
+                      addHeroImages(urls);
+                    }}
                   />
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {draft.images.heroImages
-                    .filter((url) => url.trim() && !heroLibrary.some((item) => item.url === url))
-                    .map((url) => (
-                      <button
-                        key={url}
-                        type="button"
-                        onClick={() => toggleHeroImage(url)}
-                        className="overflow-hidden rounded-lg border-2 border-accent text-left"
-                      >
-                        <img
-                          src={url}
-                          alt={tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
-                          className="h-24 w-full object-cover"
-                        />
-                        <span className="block px-3 py-2 text-xs">
-                          {tr({ vi: "Ảnh đã tải lên", en: "Uploaded image" })}
-                          {` · ${String(draft.images.heroImages.indexOf(url) + 1)}`}
-                        </span>
-                      </button>
-                    ))}
-                  {heroLibrary.map((item) => {
+                  {(() => {
                     const list = draft.images.heroImages;
-                    const active = list.includes(item.url);
+                    const order = (url: string) =>
+                      list.includes(url) ? ` · ${String(list.indexOf(url) + 1)}` : "";
+                    const knownUrls = new Set([
+                      ...siteUploads.map((item) => item.url),
+                      ...heroLibrary.map((item) => item.url),
+                    ]);
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleHeroImage(item.url)}
-                        className={cn(
-                          "overflow-hidden rounded-lg border-2 text-left",
-                          active ? "border-accent" : "border-border",
-                        )}
-                      >
-                        <img
-                          src={item.url}
-                          alt={tr(item.label)}
-                          className="h-24 w-full object-cover"
-                        />
-                        <span className="block px-3 py-2 text-xs">
-                          {tr(item.label)}
-                          {active ? ` · ${String(list.indexOf(item.url) + 1)}` : ""}
-                        </span>
-                      </button>
+                      <>
+                        {list
+                          .filter((url) => url.trim() && !knownUrls.has(url))
+                          .map((url) => (
+                            <LibraryTile
+                              key={url}
+                              src={url}
+                              label={`${tr(uploadedLabel)}${order(url)}`}
+                              selected
+                              onSelect={() => toggleHeroImage(url)}
+                            />
+                          ))}
+                        {siteUploads.map((item) => (
+                          <LibraryTile
+                            key={item.name}
+                            src={item.url}
+                            label={`${tr(uploadedLabel)}${order(item.url)}`}
+                            selected={list.includes(item.url)}
+                            onSelect={() => toggleHeroImage(item.url)}
+                            onRemove={() => uploadLibrary.onDeleteUpload(item)}
+                            removeLabel={tr({ vi: "Xóa ảnh", en: "Delete image" })}
+                          />
+                        ))}
+                        {heroLibrary
+                          .filter((item) => !hiddenMedia.includes(item.id))
+                          .map((item) => (
+                            <LibraryTile
+                              key={item.id}
+                              src={item.url}
+                              label={`${tr(item.label)}${order(item.url)}`}
+                              selected={list.includes(item.url)}
+                              onSelect={() => toggleHeroImage(item.url)}
+                              onRemove={() => uploadLibrary.onHideSample(item)}
+                              removeLabel={tr({ vi: "Ẩn ảnh mẫu", en: "Hide sample image" })}
+                            />
+                          ))}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
             </section>

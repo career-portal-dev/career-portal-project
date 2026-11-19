@@ -31,6 +31,25 @@ export async function uploadSiteImage(file: File): Promise<string> {
   return result.url;
 }
 
+export type UploadedSiteImage = {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+};
+
+/** Images uploaded through the Images tab, newest first. */
+export function fetchSiteImageUploads(): Promise<UploadedSiteImage[]> {
+  return request<UploadedSiteImage[]>(`${ADMIN_BASE}/uploads`);
+}
+
+/** Deletes an uploaded image file; refused (IMAGE_IN_USE) while the saved config uses it. */
+export async function deleteSiteImageUpload(name: string): Promise<void> {
+  await request<{ name: string }>(`${ADMIN_BASE}/uploads/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
 export function resetAdminSiteConfig(): Promise<SiteConfig> {
   return request<SiteConfig>(`${ADMIN_BASE}/reset`, { method: "POST" });
 }

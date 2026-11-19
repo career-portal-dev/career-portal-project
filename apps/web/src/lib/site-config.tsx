@@ -330,7 +330,14 @@ export type SiteConfig = {
   accent: string;
   surfaceTone: SurfaceTone;
   /** `hero` stays for compatibility; `heroImages` drives the home slideshow (max 5). */
-  images: { hero: string; heroImages: string[]; culture: string; logo: string };
+  images: {
+    hero: string;
+    heroImages: string[];
+    culture: string;
+    logo: string;
+    /** Ids of built-in sample images hidden from the Images tab library. */
+    hiddenMedia?: string[];
+  };
   copy: SiteCopy;
   sections: SiteSections;
   company: CompanyInfo;
