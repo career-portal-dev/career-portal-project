@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ExternalLink,
   GripVertical,
+  Loader2,
   Plus,
   RotateCcw,
   Save,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/request";
+import { uploadSiteImage } from "@/services/site-config.api";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -292,52 +295,78 @@ function LayoutThumb({ id }: { id: LayoutId }) {
 }
 
 const UPLOAD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
-const UPLOAD_IMAGE_MAX_BYTES = 1024 * 1024;
+/** Images-tab uploads are stored as files on the server (matches the API limit). */
+const UPLOAD_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 
-/** File picker that validates an image and hands it back as a data URL. */
+const uploadTooLarge = {
+  vi: "Ảnh quá lớn, vui lòng chọn ảnh tối đa 15MB.",
+  en: "The image is too large, please pick one up to 15MB.",
+};
+
+/**
+ * File picker for the Images tab: validates the image, uploads it to the server and hands
+ * back its /uploads/... URL, so the site configuration stores a link instead of the image.
+ */
 function ImageUploadButton({
   label,
   onUpload,
 }: {
   label: Localized;
-  onUpload: (dataUrl: string) => void;
+  onUpload: (url: string) => void;
 }) {
   const { t, tr } = useI18n();
+  const [isUploading, setIsUploading] = useState(false);
 
-  const onFile = (file: File) => {
+  const onFile = async (file: File) => {
     if (!UPLOAD_IMAGE_TYPES.includes(file.type)) {
       toast.error(t("settings.brand.uploadInvalid"));
       return;
     }
     if (file.size > UPLOAD_IMAGE_MAX_BYTES) {
-      toast.error(t("settings.brand.uploadTooLarge"));
+      toast.error(tr(uploadTooLarge));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = typeof reader.result === "string" ? reader.result : "";
-      if (url) onUpload(url);
-    };
-    reader.readAsDataURL(file);
+    setIsUploading(true);
+    try {
+      onUpload(await uploadSiteImage(file));
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && (error.code === "FILE_TOO_LARGE" || error.status === 413)
+          ? tr(uploadTooLarge)
+          : error instanceof Error
+            ? error.message
+            : tr({ vi: "Không tải ảnh lên được.", en: "Failed to upload image." }),
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring">
-        <Upload className="h-4 w-4" />
-        {tr(label)}
+      <label
+        className={cn(
+          "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring",
+          isUploading && "pointer-events-none opacity-60",
+        )}
+      >
+        {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {isUploading ? tr({ vi: "Đang tải…", en: "Uploading…" }) : tr(label)}
         <input
           type="file"
           accept={UPLOAD_IMAGE_TYPES.join(",")}
           className="sr-only"
+          disabled={isUploading}
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) onFile(file);
+            if (file) void onFile(file);
             e.target.value = "";
           }}
         />
       </label>
-      <span className="text-xs text-muted-foreground">{t("settings.brand.uploadHint")}</span>
+      <span className="text-xs text-muted-foreground">
+        {tr({ vi: "PNG, JPG, WebP hoặc SVG, tối đa 15MB.", en: "PNG, JPG, WebP or SVG, up to 15MB." })}
+      </span>
     </div>
   );
 }

@@ -31,6 +31,35 @@ const cvStorage = multer.diskStorage({
   },
 });
 
+/** Ảnh cho Cấu hình giao diện (logo, ảnh bìa, văn hoá, băng ảnh): tối đa 15MB. */
+export const SITE_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
+
+/** Allowed site image types; the stored extension comes from the type, not the file name. */
+const SITE_IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+  "image/svg+xml": ".svg",
+};
+
+export const uploadSiteImage = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `site-${unique}${SITE_IMAGE_EXTENSIONS[file.mimetype] ?? ".img"}`);
+    },
+  }),
+  limits: { fileSize: SITE_IMAGE_MAX_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!SITE_IMAGE_EXTENSIONS[file.mimetype]) {
+      cb(new Error("Only PNG, JPG, WebP or SVG images are allowed"));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 /** Dung lượng tối đa của ảnh bìa tin tức (khớp giới hạn ở frontend). */
 export const COVER_MAX_BYTES = 5 * 1024 * 1024;
 

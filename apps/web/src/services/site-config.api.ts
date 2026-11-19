@@ -20,6 +20,17 @@ export function saveAdminSiteConfig(config: SiteConfig): Promise<SiteConfig> {
   return request<SiteConfig>(ADMIN_BASE, { method: "PUT", body: JSON.stringify(config) });
 }
 
+/** Uploads a site image (logo, hero, culture, slideshow) and returns its /uploads/... URL. */
+export async function uploadSiteImage(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("image", file);
+  const result = await request<{ url: string }>(`${ADMIN_BASE}/upload`, {
+    method: "POST",
+    body: form,
+  });
+  return result.url;
+}
+
 export function resetAdminSiteConfig(): Promise<SiteConfig> {
   return request<SiteConfig>(`${ADMIN_BASE}/reset`, { method: "POST" });
 }
