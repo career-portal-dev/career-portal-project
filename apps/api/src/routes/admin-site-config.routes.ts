@@ -23,7 +23,7 @@ import { adminSiteConfigService } from "../services/admin-site-config.service";
  * File names created by `uploadSiteImage`: site-<category>-<time>-<random>.<ext>, or the
  * older site-<time>-<random>.<ext> (uploaded before images were grouped).
  */
-const SITE_IMAGE_NAME = /^site-(?:(hero|culture|logo|about|gallery)-)?\d+-\d+\.(png|jpg|webp|svg)$/;
+const SITE_IMAGE_NAME = /^site-(?:(hero|culture|logo|about|story|gallery)-)?\d+-\d+\.(png|jpg|webp|svg)$/;
 
 /** Group of an older, ungrouped upload: where the saved configuration uses it (default hero). */
 function legacyCategory(
@@ -33,8 +33,9 @@ function legacyCategory(
 ): SiteImageCategory {
   if (images.logo === url) return "logo";
   if (images.culture === url) return "culture";
-  const gallery = (about as { gallery?: unknown } | null | undefined)?.gallery;
-  if (JSON.stringify(gallery ?? {}).includes(url)) return "gallery";
+  const sections = about as { gallery?: unknown; story?: { image?: unknown } } | null | undefined;
+  if (sections?.story?.image === url) return "story";
+  if (JSON.stringify(sections?.gallery ?? {}).includes(url)) return "gallery";
   if (JSON.stringify(about ?? {}).includes(url)) return "about";
   return "hero";
 }
@@ -54,7 +55,7 @@ adminSiteConfigRoutes.post(
       res.status(400).json({
         success: false,
         code: "INVALID_CATEGORY",
-        error: "category must be hero, culture, logo, about or gallery",
+        error: "category must be hero, culture, logo, about, story or gallery",
       });
       return;
     }

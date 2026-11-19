@@ -958,6 +958,7 @@ function AboutPanel({
   onChange,
   onSave,
   coverUploads,
+  storyUploads,
   galleryUploads,
 }: {
   about: AboutConfig;
@@ -965,6 +966,8 @@ function AboutPanel({
   onSave: () => void;
   /** Upload and delete support for the cover image (same as the Images tab). */
   coverUploads: UploadLibrary;
+  /** Upload and delete support for the story image (its own upload group). */
+  storyUploads: UploadLibrary;
   /** Upload and delete support for the photo gallery (its own upload group). */
   galleryUploads: UploadLibrary;
 }) {
@@ -1174,6 +1177,8 @@ function AboutPanel({
                 library={aboutLibrary}
                 value={about.story.image}
                 onChange={(image) => set("story", { image })}
+                customLabel={uploadedLabel}
+                uploads={storyUploads}
               />
             </ContentBlock>
 
@@ -1978,6 +1983,7 @@ function AdminSettings() {
   const cultureUploads = uploadLibraryFor("culture");
   const logoUploads = uploadLibraryFor("logo");
   const aboutUploads = uploadLibraryFor("about");
+  const storyUploads = uploadLibraryFor("story");
   const galleryUploads = uploadLibraryFor("gallery");
 
   const confirmDeleteUpload = async () => {
@@ -2806,6 +2812,7 @@ function AdminSettings() {
               onChange={(about) => update({ about })}
               onSave={saveDraft}
               coverUploads={aboutUploads}
+              storyUploads={storyUploads}
               galleryUploads={galleryUploads}
             />
           </TabsContent>

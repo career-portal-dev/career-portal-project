@@ -43,7 +43,7 @@ const SITE_IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 /** Upload groups of the Images tab; each picker only lists its own group. */
-export const SITE_IMAGE_CATEGORIES = ["hero", "culture", "logo", "about", "gallery"] as const;
+export const SITE_IMAGE_CATEGORIES = ["hero", "culture", "logo", "about", "story", "gallery"] as const;
 export type SiteImageCategory = (typeof SITE_IMAGE_CATEGORIES)[number];
 
 export function parseSiteImageCategory(value: unknown): SiteImageCategory | null {
