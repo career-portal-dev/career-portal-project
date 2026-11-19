@@ -8,7 +8,7 @@
  * nên module này chịu trách nhiệm map hai chiều.
  */
 
-import type { Candidate, Stage } from "@/data/candidates";
+import type { Candidate, ExternalStatus, Stage } from "@/data/candidates";
 import type { Localized } from "@/lib/i18n";
 import { apiRequest, apiRequestBlob } from "@/lib/api/request";
 
@@ -39,6 +39,7 @@ interface ApiCandidate {
   jobId: string | null;
   jobTitle: ApiLocalizedText;
   status: ApiCandidateStatus;
+  externalStatus?: ApiExternalStatus | null;
   rating: number;
   appliedAt: string;
   hiredAt: string | null;
@@ -71,6 +72,18 @@ const UI_TO_API: Record<Stage, ApiCandidateStatus> = {
   rejected: "REJECTED",
 };
 
+type ApiExternalStatus = "SUCCESS" | "FAILED";
+
+const EXTERNAL_API_TO_UI: Record<ApiExternalStatus, ExternalStatus> = {
+  SUCCESS: "success",
+  FAILED: "failed",
+};
+
+const EXTERNAL_UI_TO_API: Record<ExternalStatus, ApiExternalStatus> = {
+  success: "SUCCESS",
+  failed: "FAILED",
+};
+
 /* ---------- helpers ---------- */
 
 const emptyLocalized: Localized = { vi: "", en: "" };
@@ -97,6 +110,7 @@ function mapApiCandidate(raw: ApiCandidate): Candidate {
     jobId: raw.jobId,
     jobTitle: asLocalized(raw.jobTitle),
     stage: API_TO_UI[raw.status] ?? "new",
+    externalStatus: raw.externalStatus ? EXTERNAL_API_TO_UI[raw.externalStatus] ?? null : null,
     rating: typeof raw.rating === "number" ? raw.rating : 0,
     appliedAt: toDateString(raw.appliedAt),
     cvFile: raw.cvFile || "",
@@ -148,6 +162,8 @@ export interface CandidateUpdatePayload {
   cvFile: string;
   jobId: string | null;
   status: Stage;
+  /** Omit to keep the stored value; null clears it. */
+  externalStatus?: ExternalStatus | null;
   rating: number;
   notes: CandidateNote[];
 }
@@ -246,6 +262,9 @@ async function updateCandidate(id: string, payload: CandidateUpdatePayload): Pro
     body: JSON.stringify({
       ...payload,
       status: UI_TO_API[payload.status],
+      ...(payload.externalStatus !== undefined && {
+        externalStatus: payload.externalStatus ? EXTERNAL_UI_TO_API[payload.externalStatus] : null,
+      }),
     }),
   });
   return mapApiCandidate(raw);

@@ -13,6 +13,14 @@ export const stageLabels: Record<Stage, Localized> = {
 
 export const stageOrder: Stage[] = ["new", "screening", "interview", "offer", "hired", "rejected"];
 
+/** External result of a candidate (column `externalstatus`). */
+export type ExternalStatus = "success" | "failed";
+
+export const externalStatusLabels: Record<ExternalStatus, Localized> = {
+  success: { vi: "Thành công", en: "Success" },
+  failed: { vi: "Thất bại", en: "Failed" },
+};
+
 export type Candidate = {
   id: string;
   name: string;
@@ -24,6 +32,8 @@ export type Candidate = {
   /** Tiêu đề job lấy từ API (DB id khác slug cục bộ) — fallback khi thiếu. */
   jobTitle?: Localized;
   stage: Stage;
+  /** null/undefined when no external result has been recorded. */
+  externalStatus?: ExternalStatus | null;
   rating: number;
   appliedAt: string;
   cvFile: string;

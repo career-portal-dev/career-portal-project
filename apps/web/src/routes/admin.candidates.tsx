@@ -41,9 +41,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  externalStatusLabels,
   stageLabels,
   stageOrder,
   type Candidate,
+  type ExternalStatus,
   type Stage,
 } from "@/data/candidates";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -72,6 +74,10 @@ export const Route = createFileRoute("/admin/candidates")({
 });
 
 const ALL = "__all__";
+/** Label of the `externalstatus` field in the candidate list and profile. */
+const externalStatusTitle = { vi: "Trạng thái kết nối API", en: "API connection status" };
+/** Select value for "no external status" (Radix Select cannot use an empty value). */
+const NO_EXTERNAL_STATUS = "__none__";
 
 function isPdfFile(value: string): boolean {
   return /\.pdf(?:$|[?#])/i.test(value);
@@ -224,6 +230,7 @@ function AdminCandidatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editStage, setEditStage] = useState<Stage>("new");
+  const [editExternalStatus, setEditExternalStatus] = useState<ExternalStatus | null>(null);
   const [editRating, setEditRating] = useState<number | null>(null);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [editNoteBody, setEditNoteBody] = useState("");
@@ -409,6 +416,7 @@ function AdminCandidatesPage() {
   const handleRowClick = (candidate: Candidate) => {
     setSelectedId(candidate.id);
     setEditStage(candidate.stage);
+    setEditExternalStatus(candidate.externalStatus ?? null);
     setEditRating(candidate.rating);
     setHoverRating(null);
     setEditNoteBody("");
@@ -437,6 +445,7 @@ function AdminCandidatesPage() {
         cvFile: selected.cvFile,
         jobId: selected.jobId,
         status: editStage,
+        externalStatus: editExternalStatus,
         rating: editRating ?? selected.rating,
         notes: editNoteBody.trim()
           ? [
@@ -502,6 +511,15 @@ function AdminCandidatesPage() {
           {t("admin.candidates.cv")}
         </Button>
       ),
+    },
+    {
+      header: tr(externalStatusTitle),
+      className: "w-[170px]",
+      // Same badge style as the stage column; empty cell when no value is stored.
+      cell: (candidate) =>
+        candidate.externalStatus ? (
+          <Badge variant="secondary">{tr(externalStatusLabels[candidate.externalStatus])}</Badge>
+        ) : null,
     },
     {
       header: tr({ vi: "Hành động", en: "Actions" }),
@@ -814,24 +832,52 @@ function AdminCandidatesPage() {
                 jobFields={selectedJobFields}
               />
 
-              <div className="space-y-2">
-                <Label htmlFor="stage">{t("admin.candidates.changeStage")}</Label>
-                <Select
-                  value={editStage}
-                  onValueChange={(value) => setEditStage(value as Stage)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger id="stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stageOrder.map((stage) => (
-                      <SelectItem key={stage} value={stage}>
-                        {tr(stageLabels[stage])}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="stage">{t("admin.candidates.changeStage")}</Label>
+                  <Select
+                    value={editStage}
+                    onValueChange={(value) => setEditStage(value as Stage)}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="stage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stageOrder.map((stage) => (
+                        <SelectItem key={stage} value={stage}>
+                          {tr(stageLabels[stage])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="external-status">{tr(externalStatusTitle)}</Label>
+                  <Select
+                    value={editExternalStatus ?? NO_EXTERNAL_STATUS}
+                    onValueChange={(value) =>
+                      setEditExternalStatus(
+                        value === NO_EXTERNAL_STATUS ? null : (value as ExternalStatus),
+                      )
+                    }
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="external-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_EXTERNAL_STATUS}>
+                        {tr({ vi: "Chưa cập nhật", en: "Not set" })}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {(Object.keys(externalStatusLabels) as ExternalStatus[]).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {tr(externalStatusLabels[status])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-3">

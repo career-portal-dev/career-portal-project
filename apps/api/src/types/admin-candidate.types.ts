@@ -6,6 +6,14 @@ export type AdminCandidateStatus =
   | "HIRED"
   | "REJECTED";
 
+/** External result: SUCCESS = "Thành công", FAILED = "Thất bại". */
+export type AdminCandidateExternalStatus = "SUCCESS" | "FAILED";
+
+export const candidateExternalStatuses: readonly AdminCandidateExternalStatus[] = [
+  "SUCCESS",
+  "FAILED",
+];
+
 export interface AdminCandidateFilterQuery {
   page?: number;
   limit?: number;
@@ -40,6 +48,8 @@ export interface AdminCandidateListItem {
   jobId: string | null;
   jobTitle: AdminCandidateLocalizedText;
   status: AdminCandidateStatus;
+  /** null when no external result has been recorded yet. */
+  externalStatus: AdminCandidateExternalStatus | null;
   rating: number;
   appliedAt: string;
   hiredAt: string | null;
@@ -74,6 +84,8 @@ export interface AdminCandidateUpdatePayload {
   cvFile: string;
   jobId: string | null;
   status: AdminCandidateStatus;
+  /** Omitted = keep the stored value; null = clear it. */
+  externalStatus?: AdminCandidateExternalStatus | null;
   rating: number;
   notes: AdminCandidateNote[];
 }

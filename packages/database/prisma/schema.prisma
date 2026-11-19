@@ -140,6 +140,8 @@ model Candidate {
   currentCompany  String?        @db.VarChar(255)
   experienceYears Int            @default(0)
   status          CandidateStatus @default(NEW)
+  /// External result: SUCCESS = "Thành công", FAILED = "Thất bại"; null when not set yet.
+  externalStatus  CandidateExternalStatus? @map("externalstatus")
   hiredAt         DateTime?
   appliedAt       DateTime       @default(now())
   cvFile          String?        @db.Text
@@ -252,6 +254,12 @@ enum CandidateStatus {
   OFFER
   HIRED
   REJECTED
+}
+
+/// Candidate external status: SUCCESS = "Thành công", FAILED = "Thất bại".
+enum CandidateExternalStatus {
+  SUCCESS
+  FAILED
 }
 
 enum ContactStatus {

@@ -1,11 +1,12 @@
 import type { Request, Response } from "express";
 import { adminCandidateService } from "../services/admin-candidate.service";
-import type {
-  AdminCandidateFilterQuery,
-  AdminCandidateNote,
-  AdminCandidateStatus,
-  AdminCandidateStatusPayload,
-  AdminCandidateUpdatePayload,
+import {
+  candidateExternalStatuses,
+  type AdminCandidateFilterQuery,
+  type AdminCandidateNote,
+  type AdminCandidateStatus,
+  type AdminCandidateStatusPayload,
+  type AdminCandidateUpdatePayload,
 } from "../types/admin-candidate.types";
 
 const candidateStatuses: readonly AdminCandidateStatus[] = [
@@ -247,6 +248,17 @@ export class AdminCandidateController {
           : "__invalid__";
       const status = payload.status;
       const rating = payload.rating ?? 0;
+      const externalStatus = payload.externalStatus;
+      if (
+        externalStatus !== undefined &&
+        externalStatus !== null &&
+        !candidateExternalStatuses.includes(externalStatus)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: "externalStatus must be SUCCESS, FAILED or null",
+        });
+      }
 
       const missing: string[] = [];
       if (!name) missing.push("name");
@@ -321,6 +333,7 @@ export class AdminCandidateController {
         cvFile,
         jobId,
         status: status as AdminCandidateStatus,
+        ...(externalStatus !== undefined && { externalStatus }),
         rating,
         notes: normalizedNotes,
       }, req.user?.name ?? "");

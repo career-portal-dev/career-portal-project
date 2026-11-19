@@ -10,6 +10,7 @@ import {
   readLocalized as baseReadLocalized,
 } from "./base.service";
 import type {
+  AdminCandidateExternalStatus,
   AdminCandidateFilterQuery,
   AdminCandidateListItem,
   AdminCandidateLocalizedText,
@@ -92,6 +93,7 @@ function mapCandidate(candidate: {
   address: string | null;
   jobId: string | null;
   status: AdminCandidateStatus;
+  externalStatus: AdminCandidateExternalStatus | null;
   rating: number | null;
   appliedAt: Date;
   hiredAt: Date | null;
@@ -124,6 +126,7 @@ function mapCandidate(candidate: {
     jobId: candidate.jobId,
     jobTitle: readLocalized(candidate.job?.title),
     status: candidate.status,
+    externalStatus: candidate.externalStatus,
     rating: candidate.rating ?? 0,
     appliedAt: candidate.appliedAt.toISOString(),
     hiredAt: candidate.hiredAt?.toISOString() ?? null,
@@ -372,6 +375,7 @@ export class AdminCandidateService extends BaseService {
             ? null
             : undefined,
         rating: payload.rating,
+        ...(payload.externalStatus !== undefined && { externalStatus: payload.externalStatus }),
         notes: nextNotes,
       },
       include: {
