@@ -23,12 +23,19 @@ import { adminSiteConfigService } from "../services/admin-site-config.service";
  * File names created by `uploadSiteImage`: site-<category>-<time>-<random>.<ext>, or the
  * older site-<time>-<random>.<ext> (uploaded before images were grouped).
  */
-const SITE_IMAGE_NAME = /^site-(?:(hero|culture|logo)-)?\d+-\d+\.(png|jpg|webp|svg)$/;
+const SITE_IMAGE_NAME = /^site-(?:(hero|culture|logo|about|gallery)-)?\d+-\d+\.(png|jpg|webp|svg)$/;
 
 /** Group of an older, ungrouped upload: where the saved configuration uses it (default hero). */
-function legacyCategory(url: string, images: Record<string, unknown>): SiteImageCategory {
+function legacyCategory(
+  url: string,
+  images: Record<string, unknown>,
+  about: unknown,
+): SiteImageCategory {
   if (images.logo === url) return "logo";
   if (images.culture === url) return "culture";
+  const gallery = (about as { gallery?: unknown } | null | undefined)?.gallery;
+  if (JSON.stringify(gallery ?? {}).includes(url)) return "gallery";
+  if (JSON.stringify(about ?? {}).includes(url)) return "about";
   return "hero";
 }
 
@@ -47,7 +54,7 @@ adminSiteConfigRoutes.post(
       res.status(400).json({
         success: false,
         code: "INVALID_CATEGORY",
-        error: "category must be hero, culture or logo",
+        error: "category must be hero, culture, logo, about or gallery",
       });
       return;
     }
@@ -84,7 +91,7 @@ adminSiteConfigRoutes.post(
 adminSiteConfigRoutes.get("/uploads", async (_req: Request, res: Response) => {
   try {
     const names = (await fs.readdir(UPLOAD_DIR)).filter((name) => SITE_IMAGE_NAME.test(name));
-    const savedImages = (await adminSiteConfigService.get()).images;
+    const saved = await adminSiteConfigService.get();
     const items = await Promise.all(
       names.map(async (name) => {
         const stat = await fs.stat(path.join(UPLOAD_DIR, name));
@@ -93,7 +100,7 @@ adminSiteConfigRoutes.get("/uploads", async (_req: Request, res: Response) => {
         return {
           name,
           url,
-          category: grouped ?? legacyCategory(url, savedImages),
+          category: grouped ?? legacyCategory(url, saved.images, saved.about),
           size: stat.size,
           uploadedAt: stat.mtime.toISOString(),
         };

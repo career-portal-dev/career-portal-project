@@ -21,7 +21,7 @@ export function saveAdminSiteConfig(config: SiteConfig): Promise<SiteConfig> {
 }
 
 /** Upload group of the Images tab: each picker lists only its own group. */
-export type SiteImageCategory = "hero" | "culture" | "logo";
+export type SiteImageCategory = "hero" | "culture" | "logo" | "about" | "gallery";
 
 /** Uploads a site image into a group and returns its /uploads/... URL. */
 export async function uploadSiteImage(file: File, category: SiteImageCategory): Promise<string> {

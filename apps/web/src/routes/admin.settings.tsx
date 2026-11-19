@@ -463,6 +463,8 @@ type UploadLibrary = {
   onUploaded: (urls: string[]) => void;
   onDeleteUpload: (item: UploadedSiteImage) => void;
   onHideSample: (item: MediaItem) => void;
+  /** Un-hides the given sample image ids. */
+  onShowSamples: (ids: string[]) => void;
 };
 
 const uploadedLabel: Localized = { vi: "Ảnh đã tải lên", en: "Uploaded image" };
@@ -490,6 +492,9 @@ function ImagePicker({
   const custom = value.trim();
   const uploaded = uploads?.items ?? [];
   const samples = uploads ? library.filter((item) => !uploads.hiddenIds.includes(item.id)) : library;
+  const hiddenHere = uploads
+    ? library.filter((item) => uploads.hiddenIds.includes(item.id)).map((item) => item.id)
+    : [];
   const showCustom =
     !!customLabel &&
     !!custom &&
@@ -538,6 +543,20 @@ function ImagePicker({
               if (urls[0]) onChange(urls[0]);
             }}
           />
+          {hiddenHere.length > 0 && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="mt-1 h-auto px-0 text-xs"
+              onClick={() => uploads.onShowSamples(hiddenHere)}
+            >
+              {tr({
+                vi: `Hiện lại ${hiddenHere.length} ảnh mẫu đã ẩn`,
+                en: `Show ${hiddenHere.length} hidden sample image(s)`,
+              })}
+            </Button>
+          )}
         </div>
       )}
       <Input
@@ -935,10 +954,16 @@ function AboutPanel({
   about,
   onChange,
   onSave,
+  coverUploads,
+  galleryUploads,
 }: {
   about: AboutConfig;
   onChange: (next: AboutConfig) => void;
   onSave: () => void;
+  /** Upload and delete support for the cover image (same as the Images tab). */
+  coverUploads: UploadLibrary;
+  /** Upload and delete support for the photo gallery (its own upload group). */
+  galleryUploads: UploadLibrary;
 }) {
   const { t, tr } = useI18n();
   const set = <K extends keyof AboutConfig>(key: K, patch: Partial<AboutConfig[K]>) =>
@@ -1033,6 +1058,8 @@ function AboutPanel({
                 library={aboutLibrary}
                 value={about.hero.image}
                 onChange={(image) => set("hero", { image })}
+                customLabel={uploadedLabel}
+                uploads={coverUploads}
               />
               <div className="grid gap-4">
                 {about.hero.stats.map((stat, index) => (
@@ -1472,6 +1499,8 @@ function AboutPanel({
                         ),
                       })
                     }
+                    customLabel={uploadedLabel}
+                    uploads={galleryUploads}
                   />
                   <CopyField
                     label={tr({ vi: "Chú thích", en: "Caption" })}
@@ -1506,6 +1535,31 @@ function AboutPanel({
                 <Plus className="h-4 w-4" />
                 {t("settings.item.add")}
               </Button>
+              <div className="rounded-md border border-dashed border-border p-3">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {tr({
+                    vi: "Thêm nhanh: mỗi ảnh tải lên sẽ thành một ảnh mới trong thư viện.",
+                    en: "Quick add: each uploaded image becomes a new photo in the gallery.",
+                  })}
+                </p>
+                <ImageUploadButton
+                  label={{ vi: "Tải nhiều ảnh vào thư viện", en: "Upload photos to the gallery" }}
+                  category="gallery"
+                  onUploaded={(urls) => {
+                    galleryUploads.onUploaded(urls);
+                    set("gallery", {
+                      items: [
+                        ...about.gallery.items,
+                        ...urls.map((url) => ({
+                          id: uid("photo"),
+                          url,
+                          caption: { vi: "", en: "" },
+                        })),
+                      ],
+                    });
+                  }}
+                />
+              </div>
             </ContentBlock>
 
             <ContentBlock
@@ -1868,11 +1922,14 @@ function AdminSettings() {
     };
   }, []);
 
-  /** True when the draft uses the image (hero, culture, logo or slideshow). */
+  /**
+   * True when the draft uses the image anywhere: hero, culture, logo, slideshow, or the About
+   * page (cover, gallery, leaders...).
+   */
   const isImageInUse = (url: string) =>
     [draft.images.hero, draft.images.culture, draft.images.logo, ...draft.images.heroImages].includes(
       url,
-    );
+    ) || JSON.stringify(draft.about).includes(JSON.stringify(url).slice(1, -1));
 
   const imageInUseMessage = {
     vi: "Ảnh đang được sử dụng. Hãy chọn ảnh khác trước khi xóa.",
@@ -1909,10 +1966,16 @@ function AdminSettings() {
       }
       update({ images: { ...draft.images, hiddenMedia: [...hiddenMedia, item.id] } });
     },
+    onShowSamples: (ids) =>
+      update({
+        images: { ...draft.images, hiddenMedia: hiddenMedia.filter((id) => !ids.includes(id)) },
+      }),
   });
   const heroUploads = uploadLibraryFor("hero");
   const cultureUploads = uploadLibraryFor("culture");
   const logoUploads = uploadLibraryFor("logo");
+  const aboutUploads = uploadLibraryFor("about");
+  const galleryUploads = uploadLibraryFor("gallery");
 
   const confirmDeleteUpload = async () => {
     if (!pendingDelete || isDeleting) return;
@@ -2684,48 +2747,6 @@ function AdminSettings() {
                 />
               </div>
 
-              <AlertDialog
-                open={pendingDelete !== null}
-                onOpenChange={(open) => {
-                  if (!open && !isDeleting) setPendingDelete(null);
-                }}
-              >
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {tr({ vi: "Xóa ảnh đã tải lên?", en: "Delete uploaded image?" })}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {tr({
-                        vi: "Ảnh sẽ bị xóa vĩnh viễn khỏi máy chủ và không thể khôi phục.",
-                        en: "The image is permanently deleted from the server and cannot be restored.",
-                      })}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  {pendingDelete && (
-                    <img
-                      src={pendingDelete.url}
-                      alt=""
-                      className="max-h-40 w-full rounded-md border border-border bg-surface object-contain"
-                    />
-                  )}
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
-                    <AlertDialogAction
-                      disabled={isDeleting}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        void confirmDeleteUpload();
-                      }}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      {isDeleting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                      {tr({ vi: "Xóa ảnh", en: "Delete image" })}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
               <div className="mt-8 border-t border-border pt-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-display text-sm font-semibold">
@@ -2813,6 +2834,8 @@ function AdminSettings() {
               about={draft.about}
               onChange={(about) => update({ about })}
               onSave={saveDraft}
+              coverUploads={aboutUploads}
+              galleryUploads={galleryUploads}
             />
           </TabsContent>
 
@@ -3169,6 +3192,49 @@ function AdminSettings() {
             </DndContext>
           </TabsContent>
         </Tabs>
+
+        {/* Delete confirmation for uploaded images (Images and About tabs). */}
+        <AlertDialog
+          open={pendingDelete !== null}
+          onOpenChange={(open) => {
+            if (!open && !isDeleting) setPendingDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {tr({ vi: "Xóa ảnh đã tải lên?", en: "Delete uploaded image?" })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {tr({
+                  vi: "Ảnh sẽ bị xóa vĩnh viễn khỏi máy chủ và không thể khôi phục.",
+                  en: "The image is permanently deleted from the server and cannot be restored.",
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {pendingDelete && (
+              <img
+                src={pendingDelete.url}
+                alt=""
+                className="max-h-40 w-full rounded-md border border-border bg-surface object-contain"
+              />
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmDeleteUpload();
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {tr({ vi: "Xóa ảnh", en: "Delete image" })}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-surface p-3">
           <Button
