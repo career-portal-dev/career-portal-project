@@ -1,4 +1,5 @@
 import type { Job } from "@/data/jobs";
+import { htmlToPlainText } from "@/lib/html-text";
 import type { Localized } from "@/lib/i18n";
 import type { Taxonomies } from "@/lib/taxonomy-store";
 
@@ -25,8 +26,10 @@ function normalize(text: string): string {
 function extractKeywords(text: string | null | undefined): string[] {
   if (!text || typeof text !== "string") return [];
 
-  // Split on newlines, bullets, commas, semicolons
-  const fragments = text
+  // Job content is rich-text HTML: turn tags into line breaks and decode entities
+  // (e.g. &nbsp;) so no markup leaks into the suggestion labels.
+  // Then split on newlines, bullets, commas, semicolons.
+  const fragments = htmlToPlainText(text)
     .split(/[\n•·\-,;]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
@@ -88,8 +91,8 @@ function extractKeywords(text: string | null | undefined): string[] {
     // Ignore if it looks like a sentence (contains multiple spaces and common sentence patterns)
     if (fragment.includes("  ") || /\b(the|is|are|was|were|will|can|should)\s+\w+\s+\w+/.test(fragment.toLowerCase())) continue;
 
-    // Clean punctuation at start/end
-    const cleaned = fragment.replace(/^[^\w\s]+|[^\w\s]+$/g, "").trim();
+    // Clean punctuation at start/end (Unicode-aware so Vietnamese letters like "độ" survive)
+    const cleaned = fragment.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").trim();
     if (cleaned.length < 2) continue;
 
     // Check if it's a stop word
